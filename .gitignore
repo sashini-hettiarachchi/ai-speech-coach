@@ -1,0 +1,19 @@
+# Python virtual environment
+venv/
+
+# Python cache files
+__pycache__/
+*.pyc
+
+# Environment variables
+.env
+
+# Uploaded and test files
+uploads/
+test_data/
+
+# OS files
+.DS_Store
+
+# VSCode settings
+.vscode/
