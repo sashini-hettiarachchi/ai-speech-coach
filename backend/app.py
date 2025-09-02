@@ -1,4 +1,5 @@
 from flask import Flask, jsonify
+from utils.delivery_metrics import analyze_delivery
 from utils.filler_detector import count_filler_words
 from utils.transcriber import transcrib_audio_with_whisper
 from utils.recommendations import give_recommendations
@@ -27,10 +28,13 @@ def analyze_speech_v2():
     print("Fillers:", fillers)
     recommendations = give_recommendations(transcript)
     print("recommendations:", recommendations)
+    delivery_metrics = analyze_delivery(filepath, transcript)
+    print("Delivery Metrics:", delivery_metrics)
     return jsonify({
         "transcript": transcript,
         "fillers": fillers,
-        "recommendations": recommendations
+        "recommendations": recommendations,
+        "delivery_metrics": delivery_metrics
     })
 
 
