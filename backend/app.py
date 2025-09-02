@@ -1,8 +1,7 @@
 from flask import Flask, jsonify
 from utils.filler_detector import count_filler_words
 from utils.transcriber import transcrib_audio_with_whisper
-# from utils.filler_detector import count_fillers_with_gemini
-# from utils.recommendations import give_recommendations_with_gemini
+from utils.recommendations import give_recommendations
 import os
 from flask_cors import CORS
 
@@ -18,38 +17,6 @@ CORS(app)
 def home():
     return 
 
-# @app.route('/v1/analyze', methods=['POST'])
-# def analyze_speech():
-#     # file = request.files['audio']
-#     # filepath = os.path.join(UPLOAD_FOLDER, file.filename)
-#     filepath = 'test_data/test2.wav'
-
-   
-#     print(filepath)
-#     # file.save(filepath)
-
-#     transcript = transcribe_audio(filepath)
-#     print("Transcript:", transcript)
-#     fillers = count_fillers(transcript)
-#     print("Fillers:", fillers)
-#     # corrected = correct_grammar(transcript)
-#     # delivery = analyze_delivery(filepath, transcript)
-#     # print("Delivery Metrics:", delivery)
-#     pitch = analyze_pitch(filepath)
-  
-  
-   
-#     print("Pitch Analysis:", pitch)
-
-#     result = {
-#         "transcript": transcript,
-#         # "corrected": corrected,
-#         "filler_words": fillers,
-#         # "delivery_metrics": delivery,
-#         "pitch": pitch
-#     }
-#     return jsonify(result)
-
 @app.route('/api/v1/analyze', methods=['POST'])
 def analyze_speech_v2():
     print("Starting speech analysis...")
@@ -58,13 +25,13 @@ def analyze_speech_v2():
     print("Transcript:", transcript)
     fillers = count_filler_words(transcript)
     print("Fillers:", fillers)
-    # recommendations = give_recommendations_with_gemini(transcript)
-    # print("recommendations:", recommendations)
-    # return jsonify({
-    #     "transcript": transcript,
-    #     "fillers": fillers,
-    #     "recommendations": recommendations
-    # })
+    recommendations = give_recommendations(transcript)
+    print("recommendations:", recommendations)
+    return jsonify({
+        "transcript": transcript,
+        "fillers": fillers,
+        "recommendations": recommendations
+    })
 
 
 if __name__ == '__main__':

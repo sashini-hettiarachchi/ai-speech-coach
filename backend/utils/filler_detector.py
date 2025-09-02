@@ -1,6 +1,7 @@
 import requests
 import json
 
+# TODO: Add all the filler words
 FILLERS = ["um", "uh", "like", "you know", "basically", "actually", "literally", "so"]
 
 def count_filler_words(transcript: str) -> dict:

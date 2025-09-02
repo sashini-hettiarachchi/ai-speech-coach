@@ -1,19 +1,20 @@
-from vertexai.preview.generative_models import GenerativeModel
+import requests
+import json
 
+def give_recommendations(transcript):
+    url = "http://localhost:11434/api/generate"
+    headers = {"Content-Type": "application/json"}
+    data = {
+        "model": "llama2",
+        "prompt": f"Act as a public speaking coach. Review this transcript for spoken grammatical errors, awkward phrasing, and run-on sentences.\n\nTranscript:\n{transcript}\n",
+        "stream": False
+    }
 
-def give_recommendations_with_gemini(transcript):
-    model = GenerativeModel("gemini-2.5-pro")
-
-    print("\n--- Performing Spoken Grammar Analysis ---")
-    spoken_grammar_prompt = f"""
-    Act as a public speaking coach. Review this transcript for spoken grammatical errors, awkward phrasing, and run-on sentences.
-    Do not correct it like a formal essay; instead, provide friendly suggestions on how to make the sentences clearer and more impactful for a live audience.
-    Do not repeat the transcript here, just provide your analysis.
-
-    Transcript:
-    {transcript}
-    """
-    grammar_res = model.generate_content([spoken_grammar_prompt])
-    print("Spoken Grammar Analysis:")
-    print("grammaer response",grammar_res.candidates[0].content.parts[0].text)
-    return grammar_res.candidates[0].content.parts[0].text
+    try:
+        response = requests.post(url, headers=headers, json=data)
+        response.raise_for_status()
+        result = response.json()
+        return result.get("response", "")
+    except requests.RequestException as e:
+        print("Error giving recommendations:", e)
+        return "Sorry, I couldn't generate recommendations at this time."
