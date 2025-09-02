@@ -1,7 +1,8 @@
 from flask import Flask, jsonify
-from utils.transcriber import transcribe_audio_with_speech_to_text
-from utils.filler_detector import count_fillers_with_gemini
-from utils.recommendations import give_recommendations_with_gemini
+from utils.filler_detector import count_filler_words
+from utils.transcriber import transcrib_audio_with_whisper
+# from utils.filler_detector import count_fillers_with_gemini
+# from utils.recommendations import give_recommendations_with_gemini
 import os
 from flask_cors import CORS
 
@@ -53,17 +54,17 @@ def home():
 def analyze_speech_v2():
     print("Starting speech analysis...")
     filepath = 'test_data/test2.wav'
-    transcript = transcribe_audio_with_speech_to_text(filepath)
+    transcript = transcrib_audio_with_whisper(filepath)
     print("Transcript:", transcript)
-    fillers = count_fillers_with_gemini(transcript)
+    fillers = count_filler_words(transcript)
     print("Fillers:", fillers)
-    recommendations = give_recommendations_with_gemini(transcript)
-    print("recommendations:", recommendations)
-    return jsonify({
-        "transcript": transcript,
-        "fillers": fillers,
-        "recommendations": recommendations
-    })
+    # recommendations = give_recommendations_with_gemini(transcript)
+    # print("recommendations:", recommendations)
+    # return jsonify({
+    #     "transcript": transcript,
+    #     "fillers": fillers,
+    #     "recommendations": recommendations
+    # })
 
 
 if __name__ == '__main__':
