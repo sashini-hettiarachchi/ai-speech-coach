@@ -1,40 +1,66 @@
-# from vertexai.preview.generative_models import GenerativeModel, Part
 import requests
+import json
 
+FILLERS = ["um", "uh", "like", "you know", "basically", "actually", "literally", "so"]
 
-
-FILLERS = ["um", "uh", "like", "you know", "so", "basically", "actually"]
-
-# def count_fillers_with_gemini(transcript):
-#     """
-#     Analyzes the transcript using Vertex AI's Gemini model for filler words and spoken grammar.
-#     """
-
-#     model = GenerativeModel("gemini-2.5-pro") 
-
-#     print("\n--- Performing Filler Word Analysis (LLM-Powered Contextual) ---")
-#     filler_word_prompt = f"""
-#     Analyze the following speech transcript. Identify and list all filler words (like 'um', 'ah', 'like', 'you know', 'so', 'right', 'hmm').
-#     Calculate the total filler word count and provide it in the top level of the response.
-
-#     Transcript:
-#     {transcript}
-#     """
-#     response = model.generate_content([filler_word_prompt])
-#     print("LLM-Powered Filler Word Analysis:")
-#     print("filler word response",response.candidates[0].content.parts[0].text)
-#     return response.candidates[0].content.parts[0].text
-
-
-def count_filler_words(transcript):
+def count_filler_words(transcript: str) -> dict:
     """
-    Counts filler words in the given transcript.
+    Uses a local LLaMA 2 model (via Ollama API) to count filler words in a transcript.
+    Returns a dictionary with filler counts and total.
     """
-    resp = requests.post("http://localhost:11434/api/generate", json={
-    "model": "llama2",
-    "prompt": "Analyze transcript and highlight sensitive words."
-    })
-    print(resp.json()["response"])
-    words = transcript.lower().split()
-    filler_counts = {filler: words.count(filler) for filler in FILLERS if words.count(filler) > 0}
-    return filler_counts
+
+    filler_word_prompt = f"""
+    You are an assistant that analyzes spoken transcripts to detect filler words.
+    Filler words include: {", ".join(f'"{f}"' for f in FILLERS)}.
+
+    Instructions:
+    1. Read the transcript carefully.
+    2. Identify and count all filler words.
+    3. Return the result strictly as JSON:
+       {{
+         "fillers": {{"um": 1, "uh": 1}},
+         "total": 2
+       }}
+
+    Transcript:
+    {transcript}
+    """
+
+    try:
+        resp = requests.post(
+            "http://localhost:11434/api/generate",
+            json={"model": "llama2", "prompt": filler_word_prompt, "stream": False},
+            timeout=60,
+        )
+        resp.raise_for_status()
+
+        data = resp.json()
+        result_text = data.get("response", "").strip()
+
+        # Try parsing directly
+        try:
+            result = json.loads(result_text)
+            return result
+        except json.JSONDecodeError:
+            # Try extracting JSON substring from text
+            start = result_text.find("{")
+            end = result_text.rfind("}") + 1
+            if start != -1 and end != -1:
+                json_part = result_text[start:end]
+                try:
+                    result = json.loads(json_part)
+                    return result
+                except json.JSONDecodeError:
+                    pass
+
+        # If LLaMA output wasn’t JSON → fallback
+        print("Warning: Model did not return valid JSON, using naive fallback.")
+        raise ValueError("Invalid JSON from model")
+
+    except (requests.RequestException, ValueError) as e:
+        print("Error analyzing fillers:", e)
+
+        # Fallback: naive count
+        words = transcript.lower().split()
+        filler_counts = {f: words.count(f) for f in FILLERS if f in words}
+        return {"fillers": filler_counts, "total": sum(filler_counts.values())}
