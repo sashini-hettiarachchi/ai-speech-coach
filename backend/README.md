@@ -23,6 +23,7 @@
    The app will be available at http://127.0.0.1:5000/
 
 ## Project Structure
+
 - `app.py`: Main Flask application
 - `utils/`: Utility modules for speech analysis
 - `uploads/`: Uploaded audio files
@@ -36,14 +37,30 @@ To analyze an audio file, use the following sample `curl` command:
 curl -X POST http://localhost:5000/analyze \
   -F "file=@/path/to/your/audiofile.wav"
 ```
-```bash
-curl -X POST http://localhost:5000/api/v1/analyze
-```
 Replace `/path/to/your/audiofile.wav` with the path to your audio file.
 
 ## Notes
+
 - Do not commit your `.env` file or `venv/` folder to version control.
 - For development, the app runs in debug mode by default.
 
 ---
+
+## Running LLaMA Model with Docker
+
+If you want to run a LLaMA model as an API server, you can use Ollama.
+
+### Using Ollama
+
+1. **Start Ollama in Docker:**
+   ```bash
+   docker run -d --name ollama -p 11434:11434 ollama/ollama
+   ```
+
+2. **Pull a LLaMA model:**
+   ```bash
+   docker exec -it ollama ollama pull llama2
+   ```
+
+This will set up an HTTP endpoint for LLaMA at port `11434`.
 
