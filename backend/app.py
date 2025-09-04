@@ -1,4 +1,5 @@
 from flask import Flask, jsonify
+# from utils.facial_expressions_analyzer import analyze_facial_expressions
 from utils.delivery_metrics import analyze_delivery
 from utils.filler_detector import count_filler_words
 from utils.transcriber import transcrib_audio_with_whisper
@@ -36,7 +37,8 @@ def analyze_speech_v2():
         "recommendations": recommendations,
         "delivery_metrics": delivery_metrics
     })
-
+    # df = analyze_facial_expressions("test_data/test_video1.mp4", "test_data/video_emotions.csv")
+    # print(df.head())
 
 if __name__ == '__main__':
     app.run(debug=True)

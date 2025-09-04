@@ -34,7 +34,7 @@
 To analyze an audio file, use the following sample `curl` command:
 
 ```bash
-curl -X POST http://localhost:5000/analyze \
+curl -X POST http://localhost:5000/api/v1/analyze \
   -F "file=@/path/to/your/audiofile.wav"
 ```
 Replace `/path/to/your/audiofile.wav` with the path to your audio file.
