@@ -32,7 +32,14 @@ def analyze_facial_expressions(video_path: str, output_csv: str = "facial_expres
         try:
             # Analyze emotions using DeepFace
             analysis = DeepFace.analyze(frame, actions=["emotion"], enforce_detection=False)
-            emotions = analysis["emotion"]  # Dict: {'angry': .., 'happy': .., etc.}
+            # DeepFace may return a list if multiple faces are detected
+            if isinstance(analysis, list):
+                analysis = analysis[0] if analysis else {"emotion": {e: 0 for e in ["angry", "disgust", "fear", "happy", "sad", "surprise", "neutral"]}}
+            emotions = analysis.get("emotion", {})
+            if isinstance(emotions, list):
+                emotions = emotions[0] if emotions else {e: 0 for e in ["angry", "disgust", "fear", "happy", "sad", "surprise", "neutral"]}
+            if not isinstance(emotions, dict):
+                emotions = {e: 0 for e in ["angry", "disgust", "fear", "happy", "sad", "surprise", "neutral"]}
         except Exception as e:
             # If no face detected, record zeroes
             print(f"Frame {frame_num}: {e}")
