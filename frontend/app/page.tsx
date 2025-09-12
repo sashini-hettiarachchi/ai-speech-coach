@@ -8,12 +8,16 @@ import Header from "../components/Header";
 import LoadingDots from "../components/LoadingDots";
 import axios from "axios";
 import ReactMarkdown from "react-markdown";
+import dynamic from "next/dynamic";
+const FillerWordsChart = dynamic(() => import("../components/FillerWordsCharts"), { ssr: false });
+const DeliveryMetricsTable = dynamic(() => import("../components/DeliveryMetrics"), { ssr: false });
 
 export default function Home() {
   const [loading, setLoading] = useState(false);
-  const [fillerWords, setFillerWords] = useState("");
+  const [fillerWords, setFillerWords] = useState<any>("");
   const [recommendations, setRecommendations] = useState("");
   const [transcript, setTranscript] = useState("");
+  const [deliveryMetrics, setDeliveryMetrics] = useState<any>(null);
 
   const bioRef = useRef<null | HTMLDivElement>(null);
 
@@ -29,6 +33,7 @@ export default function Home() {
       setFillerWords(data.fillers);
       setRecommendations(data.recommendations);
       setTranscript(data.transcript);
+      if (data.delivery_metrics) setDeliveryMetrics(data.delivery_metrics);
     } catch (error) {
       toast.error("Error analyzing speech");
       console.error(error);
@@ -113,6 +118,7 @@ export default function Home() {
 
         {/* Results Section */}
         <div className="mt-8 grid gap-6 max-w-xl w-full">
+
           <div>
             <label className="block text-left font-medium mb-2 text-slate-700">
               Transcript
@@ -128,15 +134,21 @@ export default function Home() {
           {/* Filler Word Count */}
           <div>
             <label className="block text-left font-medium mb-2 text-slate-700">
-              Filler Words and Grammar Mistakes Analysis
+              Filler Words
             </label>
-            <textarea
-              readOnly
-              rows={6}
-              className="w-full rounded-md border-gray-300 shadow-sm focus:border-black focus:ring-black my-5 px-3 py-2 bg-gray-100 text-gray-700 mb-4"
-              value={fillerWords}
-              placeholder="Filler words and grammar mistakes analysis will appear here."
-            />
+            {fillerWords && typeof fillerWords === "object" && fillerWords.fillers ? (
+              <div className="w-full bg-white rounded-md shadow-sm p-4 mb-4">
+                <FillerWordsChart fillerWords={fillerWords} />
+              </div>
+            ) : (
+              <textarea
+                readOnly
+                rows={6}
+                className="w-full rounded-md border-gray-300 shadow-sm focus:border-black focus:ring-black my-5 px-3 py-2 bg-gray-100 text-gray-700 mb-4"
+                value={typeof fillerWords === "string" ? fillerWords : ""}
+                placeholder="Filler words and grammar mistakes analysis will appear here."
+              />
+            )}
           </div>
           {/* Recommendations */}
           <div>
@@ -158,6 +170,10 @@ export default function Home() {
 
             }
           </div>
+          {/* Delivery Metrics */}
+          {deliveryMetrics && (
+            <DeliveryMetricsTable metrics={deliveryMetrics} />
+          )}
         </div>
       </main>
       <Footer />

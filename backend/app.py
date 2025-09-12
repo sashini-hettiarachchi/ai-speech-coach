@@ -31,8 +31,8 @@ def analyze_speech_v2():
     print("recommendations:", recommendations)
     delivery_metrics = analyze_delivery(filepath, transcript)
     print("Delivery Metrics:", delivery_metrics)
-    df = analyze_facial_expressions("test_data/test_video1.mp4", "test_data/video_emotions.csv")
-    print(df.head())
+    # df = analyze_facial_expressions("test_data/test_video1.mp4", "test_data/video_emotions.csv")
+    # print(df.head())
     return jsonify({
         "transcript": transcript,
         "fillers": fillers,
