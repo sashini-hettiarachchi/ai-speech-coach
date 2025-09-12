@@ -2,6 +2,9 @@ import type { Metadata } from "next";
 import PlausibleProvider from "next-plausible";
 import localFont from "next/font/local";
 import "./globals.css";
+import { Auth0Provider } from '@auth0/nextjs-auth0';
+import Header from "../components/Header";
+import Footer from "../components/Footer";
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -55,7 +58,11 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        {children}
+        <Auth0Provider>
+             <Header />
+          {children}
+          <Footer />
+        </Auth0Provider>
       </body>
     </html>
   );
