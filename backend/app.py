@@ -6,6 +6,7 @@ from utils.transcriber import transcrib_audio_with_whisper
 from utils.recommendations import give_recommendations
 import os
 from flask_cors import CORS
+from flask import request
 
 
 
@@ -22,7 +23,11 @@ def home():
 @app.route('/api/v1/analyze', methods=['POST'])
 def analyze_speech_v2():
     print("Starting speech analysis...")
-    filepath = 'test_data/test2.wav'
+    if 'file' not in request.files:
+        return jsonify({"error": "No file uploaded"}), 400
+    file = request.files['file']
+    filepath = os.path.join(UPLOAD_FOLDER, file.filename)
+    file.save(filepath)
     transcript = transcrib_audio_with_whisper(filepath)
     print("Transcript:", transcript)
     fillers = count_filler_words(transcript)

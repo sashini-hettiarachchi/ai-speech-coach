@@ -18,13 +18,20 @@ export default function Home() {
   const [recommendations, setRecommendations] = useState("");
   const [transcript, setTranscript] = useState("");
   const [deliveryMetrics, setDeliveryMetrics] = useState<any>(null);
+  const [audioFile, setAudioFile] = useState<File | null>(null);
 
   const bioRef = useRef<null | HTMLDivElement>(null);
 
   const handleAnalyseSpeech = async () => {
+    if (!audioFile) {
+      toast.error("Please upload an audio file.");
+      return;
+    }
     setLoading(true);
     try {
-      const response = await axios.post("http://localhost:5000/api/v1/analyze");
+      const formData = new FormData();
+      formData.append("file", audioFile);
+      const response = await axios.post("http://localhost:5000/api/v1/analyze", formData);
       // If you need to send a file, use FormData and pass as second argument
       // const response = await axios.post("http://localhost:5000/api/v1/analyze", formData);
       const data = response.data;
@@ -69,29 +76,8 @@ export default function Home() {
             type="file"
             accept="audio/*"
             className="w-full rounded-md border-gray-300 shadow-sm focus:border-black focus:ring-black my-5 px-3 py-2"
+            onChange={e => setAudioFile(e.target.files?.[0] || null)}
           />
-
-          {/* Voice Recording Section */}
-          <div className="flex mt-6 items-center space-x-3">
-            <Image
-              src="/2-black.png"
-              width={30}
-              height={30}
-              alt="mic icon"
-            />
-            <p className="text-left font-medium">Or record your voice here.</p>
-          </div>
-          <div className="flex flex-col items-center my-5">
-            <button
-              className="bg-black rounded-xl text-white font-medium px-4 py-2 hover:bg-black/80 mb-2"
-            // onClick={handleRecord} // Add recording logic as needed
-            >
-              Start Recording
-            </button>
-            <span className="text-xs text-gray-500">
-              Recording will use your device microphone.
-            </span>
-          </div>
 
           {loading ? (
             <button
