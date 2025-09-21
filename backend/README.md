@@ -3,6 +3,7 @@
 ## Setup Instructions
 
 1. **Create and activate a virtual environment:**
+   use python 3.11
    ```zsh
    python3 -m venv venv
    source venv/bin/activate
@@ -20,7 +21,10 @@
    ```zsh
    flask run
    ```
-   The app will be available at http://127.0.0.1:5000/
+   ```zsh
+   python3 app.py
+   ```
+   The app will be available at http://127.0.0.1:5005/
 
 ## Project Structure
 
@@ -34,7 +38,7 @@
 To analyze an audio file, use the following sample `curl` command:
 
 ```bash
-curl -X POST http://localhost:5000/api/v1/analyze \
+curl -X POST http://localhost:5005/api/v1/analyze \
   -F "file=@/path/to/your/audiofile.wav"
 ```
 Replace `/path/to/your/audiofile.wav` with the path to your audio file.

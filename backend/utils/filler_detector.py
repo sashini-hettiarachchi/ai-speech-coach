@@ -19,8 +19,7 @@ def count_filler_words(transcript: str) -> dict:
     2. Identify and count all filler words.
     3. Return the result strictly as JSON:
        {{
-         "fillers": {{"um": 1, "uh": 1}},
-         "total": 2
+         "fillers": {{"um": 1, "uh": 1}} 
        }}
 
     Transcript:

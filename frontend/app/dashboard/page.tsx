@@ -41,7 +41,7 @@ export default function Dashboard() {
 		try {
 			const formData = new FormData();
 			formData.append("file", audioFile);
-			const response = await axios.post("http://localhost:5000/api/v1/analyze", formData);
+			const response = await axios.post("http://localhost:5005/api/v1/analyze", formData);
 			const data = response.data;
 			setFillerWords(data.fillers);
 			setRecommendations(data.recommendations);
