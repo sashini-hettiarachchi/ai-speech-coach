@@ -1,66 +1,268 @@
 import requests
 import json
+import re
+from typing import Dict, List
 
-# TODO: Add all the filler words
-FILLERS = ["um", "uh", "like", "you know", "basically", "actually", "literally", "so"]
+# Comprehensive list of filler words and phrases
+FILLERS = [
+    # Basic fillers
+    "um", "uh", "uhm", "ah", "er", "eh", "hmm", "mm",
+    # Common verbal fillers
+    "like", "you know", "basically", "actually", "literally", "so",
+    "well", "okay", "right", "I mean", "sort of", "kind of",
+    # Hesitation words
+    "anyway", "whatever", "stuff", "thing", "things", "obviously",
+    "totally", "really", "very", "just", "maybe", "probably",
+    # Professional hesitations
+    "let me see", "how do I put this", "what I'm trying to say",
+    "if you will", "as it were", "per se", "you see"
+]
 
 def count_filler_words(transcript: str) -> dict:
     """
-    Uses a local LLaMA 2 model (via Ollama API) to count filler words in a transcript.
-    Returns a dictionary with filler counts and total.
+    Analyzes transcript for filler words using LLM with enhanced fallback.
+    Returns detailed analysis with counts, percentages, and insights.
     """
+    
+    if not transcript or not transcript.strip():
+        return {
+            "total_fillers": 0,
+            "filler_percentage": 0.0,
+            "fillers": {},
+            "filler_details": [],
+            "word_count": 0,
+            "analysis": "No transcript provided for analysis."
+        }
 
-    filler_word_prompt = f"""
-    You are an assistant that analyzes spoken transcripts to detect filler words.
-    Filler words include: {", ".join(f'"{f}"' for f in FILLERS)}.
+    # Try LLM analysis first
+    try:
+        llm_result = _analyze_with_llm(transcript)
+        if llm_result:
+            return llm_result
+    except Exception as e:
+        print(f"LLM analysis failed: {e}")
+    
+    # Fallback to enhanced rule-based analysis
+    print("Using enhanced rule-based filler analysis...")
+    return _enhanced_rule_based_analysis(transcript)
 
-    Instructions:
-    1. Read the transcript carefully.
-    2. Identify and count all filler words.
-    3. Return the result strictly as JSON:
-       {{
-         "fillers": {{"um": 1, "uh": 1}} 
-       }}
-
-    Transcript:
-    {transcript}
+def _analyze_with_llm(transcript: str) -> dict:
     """
+    Use LLM for filler word detection with improved prompting.
+    """
+    
+    enhanced_prompt = f"""You are a speech analysis expert. Analyze this transcript and count filler words precisely.
+
+FILLER WORDS TO DETECT:
+{', '.join(FILLERS)}
+
+INSTRUCTIONS:
+1. Count each filler word occurrence (case-insensitive)
+2. Include multi-word phrases like "you know", "I mean"
+3. Don't count words when they have semantic meaning
+4. Return ONLY a valid JSON object in this exact format:
+
+{{
+  "filler_counts": {{"um": 2, "like": 1, "you know": 3}},
+  "total_fillers": 6
+}}
+
+TRANSCRIPT TO ANALYZE:
+"{transcript}"
+
+RESPONSE (JSON only):"""
 
     try:
-        resp = requests.post(
+        response = requests.post(
             "http://localhost:11434/api/generate",
-            json={"model": "llama2", "prompt": filler_word_prompt, "stream": False},
-            timeout=60,
+            json={
+                "model": "llama3", 
+                "prompt": enhanced_prompt, 
+                "stream": False,
+                "options": {
+                    "temperature": 0,
+                    "top_p": 0.9,
+                    "num_predict": 200
+                }
+            },
+            timeout=30
         )
-        resp.raise_for_status()
-
-        data = resp.json()
+        
+        if response.status_code != 200:
+            raise requests.RequestException(f"HTTP {response.status_code}")
+            
+        data = response.json()
         result_text = data.get("response", "").strip()
+        
+        # Extract and validate JSON
+        parsed_result = _extract_and_validate_json(result_text)
+        if parsed_result:
+            return _format_analysis_result(parsed_result, transcript, "llm")
+            
+    except requests.RequestException as e:
+        print(f"LLM service error: {e}")
+    except json.JSONDecodeError as e:
+        print(f"JSON parsing error: {e}")
+    except Exception as e:
+        print(f"Unexpected LLM error: {e}")
+    
+    return None
 
-        # Try parsing directly
-        try:
-            result = json.loads(result_text)
+def _extract_and_validate_json(text: str) -> dict:
+    """
+    Extract JSON from LLM response using multiple strategies.
+    """
+    
+    # Strategy 1: Direct JSON parsing
+    try:
+        result = json.loads(text.strip())
+        if _validate_json_structure(result):
             return result
-        except json.JSONDecodeError:
-            # Try extracting JSON substring from text
-            start = result_text.find("{")
-            end = result_text.rfind("}") + 1
-            if start != -1 and end != -1:
-                json_part = result_text[start:end]
-                try:
-                    result = json.loads(json_part)
+    except json.JSONDecodeError:
+        pass
+    
+    # Strategy 2: Find JSON block using regex
+    json_patterns = [
+        r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}',  # Nested braces
+        r'\{.*?\}',  # Simple braces
+    ]
+    
+    for pattern in json_patterns:
+        matches = re.findall(pattern, text, re.DOTALL)
+        for match in matches:
+            try:
+                result = json.loads(match.strip())
+                if _validate_json_structure(result):
                     return result
-                except json.JSONDecodeError:
-                    pass
+            except json.JSONDecodeError:
+                continue
+    
+    # Strategy 3: Manual extraction of key-value pairs
+    return _extract_manual_counts(text)
 
-        # If LLaMA output wasn’t JSON → fallback
-        print("Warning: Model did not return valid JSON, using naive fallback.")
-        raise ValueError("Invalid JSON from model")
+def _validate_json_structure(data: dict) -> bool:
+    """
+    Validate that JSON has expected structure.
+    """
+    return (isinstance(data, dict) and 
+            "filler_counts" in data and 
+            isinstance(data["filler_counts"], dict))
 
-    except (requests.RequestException, ValueError) as e:
-        print("Error analyzing fillers:", e)
+def _extract_manual_counts(text: str) -> dict:
+    """
+    Manually extract filler counts from text when JSON parsing fails.
+    """
+    filler_counts = {}
+    
+    # Look for filler word counts in various formats
+    for filler in FILLERS:
+        patterns = [
+            rf'"{re.escape(filler)}":\s*(\d+)',
+            rf"'{re.escape(filler)}':\s*(\d+)",
+            rf'{re.escape(filler)}:\s*(\d+)',
+            rf'{re.escape(filler)}\s*-\s*(\d+)',
+            rf'{re.escape(filler)}\s*:\s*(\d+)',
+        ]
+        
+        for pattern in patterns:
+            match = re.search(pattern, text, re.IGNORECASE)
+            if match:
+                count = int(match.group(1))
+                if count > 0:
+                    filler_counts[filler] = count
+                break
+    
+    if filler_counts:
+        return {
+            "filler_counts": filler_counts,
+            "total_fillers": sum(filler_counts.values())
+        }
+    
+    return None
 
-        # Fallback: naive count
-        words = transcript.lower().split()
-        filler_counts = {f: words.count(f) for f in FILLERS if f in words}
-        return {"fillers": filler_counts, "total": sum(filler_counts.values())}
+def _enhanced_rule_based_analysis(transcript: str) -> dict:
+    """
+    Enhanced rule-based filler word detection with pattern matching.
+    """
+    
+    # Normalize transcript
+    text = transcript.lower().strip()
+    word_count = len(transcript.split())
+    
+    filler_counts = {}
+    filler_details = []
+    
+    # Process single-word fillers
+    single_word_fillers = [f for f in FILLERS if ' ' not in f]
+    for filler in single_word_fillers:
+        # Use word boundaries to avoid partial matches
+        pattern = rf'\b{re.escape(filler)}\b'
+        matches = re.findall(pattern, text)
+        count = len(matches)
+        if count > 0:
+            filler_counts[filler] = count
+            filler_details.extend([filler] * count)
+    
+    # Process multi-word fillers
+    multi_word_fillers = [f for f in FILLERS if ' ' in f]
+    for filler in multi_word_fillers:
+        pattern = rf'\b{re.escape(filler)}\b'
+        matches = re.findall(pattern, text)
+        count = len(matches)
+        if count > 0:
+            filler_counts[filler] = count
+            filler_details.extend([filler] * count)
+    
+    return _format_analysis_result(
+        {"filler_counts": filler_counts, "total_fillers": sum(filler_counts.values())},
+        transcript,
+        "rule_based"
+    )
+
+def _format_analysis_result(parsed_result: dict, transcript: str, method: str) -> dict:
+    """
+    Format analysis result into standardized response.
+    """
+    
+    filler_counts = parsed_result.get("filler_counts", {})
+    total_fillers = parsed_result.get("total_fillers", sum(filler_counts.values()))
+    
+    word_count = len(transcript.split())
+    filler_percentage = (total_fillers / word_count * 100) if word_count > 0 else 0
+    
+    # Create detailed list of found fillers
+    filler_details = []
+    for filler, count in filler_counts.items():
+        if count > 0:
+            filler_details.extend([filler] * count)
+    
+    # Generate contextual analysis
+    if total_fillers == 0:
+        analysis = "Excellent! No filler words detected. Very clear and professional delivery."
+    elif filler_percentage < 1:
+        analysis = f"Outstanding delivery! Only {total_fillers} filler words ({filler_percentage:.1f}%) - extremely professional."
+    elif filler_percentage < 3:
+        analysis = f"Great job! {total_fillers} filler words detected ({filler_percentage:.1f}%) - very good delivery with room for minor polish."
+    elif filler_percentage < 5:
+        analysis = f"Good delivery with {total_fillers} filler words ({filler_percentage:.1f}%). Consider practicing pauses instead of fillers."
+    else:
+        analysis = f"Focus area identified: {total_fillers} filler words ({filler_percentage:.1f}%). Practice reducing these for more professional delivery."
+    
+    # Find most common filler for targeted feedback
+    most_common_filler = max(filler_counts, key=filler_counts.get) if filler_counts else None
+    
+    result = {
+        "total_fillers": total_fillers,
+        "filler_percentage": round(filler_percentage, 2),
+        "fillers": filler_counts,
+        "filler_details": filler_details,
+        "word_count": word_count,
+        "analysis": analysis,
+        "analysis_method": method
+    }
+    
+    if most_common_filler:
+        result["most_common_filler"] = most_common_filler
+        result["improvement_tip"] = f"Focus on reducing '{most_common_filler}' - used {filler_counts[most_common_filler]} times."
+    
+    return result

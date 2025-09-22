@@ -24,6 +24,7 @@ except ImportError:
 
 # Import the unified LLM interface
 from mcp_servers.llm_interface import SpeechCoachLLMInterface
+from utils.llm_recommendations import llm_recommender
 
 app = Flask(__name__)
 UPLOAD_FOLDER = 'uploads'
@@ -100,6 +101,7 @@ def analyze_speech():
                 "transcript": transcript,
                 "fillers": fillers,
                 "delivery_metrics": delivery_metrics,
+                "word_count": len(transcript.split()) if transcript else 0,
                 "metrics": {
                     "pace_wpm": delivery_metrics.get("pace", 140),
                     "filler_words_count": fillers.get("total_fillers", 0),
@@ -109,49 +111,118 @@ def analyze_speech():
                 }
             }
             
-            # Get contextual feedback from knowledge servers
-            contextual_feedback = llm_interface.get_contextual_feedback(
-                user_id=user_id,
-                speech_analysis=speech_analysis,
-                domain=domain,
-                event_id=event_id,
-                audience_id=audience_id
-            )
-            
-            # Extract recommendations from contextual feedback
-            recommendations = []
-            if 'personalized_recommendations' in contextual_feedback:
-                for rec in contextual_feedback['personalized_recommendations']:
-                    recommendations.append(f"**{rec['category']}**: {rec['recommendation']} - {rec['rationale']}")
-            
-            if 'next_steps' in contextual_feedback:
-                recommendations.extend([f"**Next Step**: {step}" for step in contextual_feedback['next_steps']])
-            
-            # Format recommendations for frontend
-            formatted_recommendations = "\n\n".join(recommendations) if recommendations else "Keep practicing your speaking skills!"
-            
-            context_applied = True
-            print("Knowledge server integration successful")
+            # Get context from knowledge servers
+            try:
+                # Get all context information
+                user_context = llm_interface.user_knowledge_server.get_context(user_id)
+                domain_context = llm_interface.domain_knowledge_server.get_context(domain)
+                event_context = llm_interface.event_knowledge_server.get_context(event_id)
+                audience_context = llm_interface.audience_knowledge_server.get_context(audience_id)
+                
+                print(f"Retrieved context - User: {user_context is not None}, Domain: {domain_context is not None}")
+                
+                # Generate LLM-based recommendations with context
+                llm_recommendations = llm_recommender.generate_contextual_recommendations(
+                    speech_analysis=speech_analysis,
+                    user_context=user_context,
+                    domain_context=domain_context,
+                    event_context=event_context,
+                    audience_context=audience_context
+                )
+                
+                # Format recommendations for frontend
+                recommendations = []
+                if llm_recommendations.get('specific_recommendations'):
+                    for rec in llm_recommendations['specific_recommendations']:
+                        category = rec.get('category', 'General')
+                        recommendation = rec.get('recommendation', '')
+                        rationale = rec.get('rationale', '')
+                        priority = rec.get('priority', 'medium')
+                        
+                        priority_emoji = {
+                            'high': '🚨',
+                            'medium': '⚡',
+                            'low': '💡'
+                        }.get(priority, '📝')
+                        
+                        recommendations.append(f"{priority_emoji} **{category}**: {recommendation}\n   *{rationale}*")
+                
+                if llm_recommendations.get('context_specific_tips'):
+                    recommendations.append("\n**💡 Context-Specific Tips:**")
+                    for tip in llm_recommendations['context_specific_tips']:
+                        recommendations.append(f"   • {tip}")
+                
+                if llm_recommendations.get('next_steps'):
+                    recommendations.append("\n**🎯 Next Steps:**")
+                    for step in llm_recommendations['next_steps']:
+                        recommendations.append(f"   • {step}")
+                
+                formatted_recommendations = "\n\n".join(recommendations) if recommendations else "Keep practicing your speaking skills!"
+                
+                # Enhanced contextual feedback
+                contextual_feedback = {
+                    "llm_recommendations": llm_recommendations,
+                    "overall_score": llm_recommendations.get('overall_score', 7.0),
+                    "strengths": llm_recommendations.get('strengths', []),
+                    "areas_for_improvement": llm_recommendations.get('areas_for_improvement', []),
+                    "personalized": llm_recommendations.get('personalized', False),
+                    "context_applied": llm_recommendations.get('context_applied', False),
+                    "generation_method": llm_recommendations.get('generation_method', 'unknown'),
+                    "context_sources": {
+                        "user_context": user_context is not None,
+                        "domain_context": domain_context is not None,
+                        "event_context": event_context is not None,
+                        "audience_context": audience_context is not None
+                    }
+                }
+                
+                context_applied = True
+                print(f"✅ LLM recommendations generated successfully ({contextual_feedback['generation_method']})")
+                
+            except Exception as llm_error:
+                print(f"LLM recommendation error: {str(llm_error)}")
+                
+                # Fallback to original knowledge server approach
+                contextual_feedback = llm_interface.get_contextual_feedback(
+                    user_id=user_id,
+                    speech_analysis=speech_analysis,
+                    domain=domain,
+                    event_id=event_id,
+                    audience_id=audience_id
+                )
+                
+                # Extract recommendations from knowledge server feedback
+                recommendations = []
+                if 'personalized_recommendations' in contextual_feedback:
+                    for rec in contextual_feedback['personalized_recommendations']:
+                        recommendations.append(f"**{rec['category']}**: {rec['recommendation']} - {rec['rationale']}")
+                
+                if 'next_steps' in contextual_feedback:
+                    recommendations.extend([f"**Next Step**: {step}" for step in contextual_feedback['next_steps']])
+                
+                formatted_recommendations = "\n\n".join(recommendations) if recommendations else "Keep practicing your speaking skills!"
+                context_applied = True
+                print("Knowledge server integration successful (fallback)")
             
         except Exception as e:
             print(f"Error with knowledge servers: {str(e)}")
             traceback.print_exc()
             
-            # Fallback recommendations
+            # Final fallback recommendations
             formatted_recommendations = f"""
-**Delivery Analysis**
+**📊 Delivery Analysis**
 - Filler words detected: {fillers.get('total_fillers', 0)} ({fillers.get('filler_percentage', 0):.1f}% of speech)
 - Speaking pace: {delivery_metrics.get('pace', 140)} words per minute
 - Confidence level: {delivery_metrics.get('confidence', 7.5)}/10
 
-**Recommendations**
+**🎯 Recommendations**
 - Practice reducing filler words like 'um', 'uh', and 'like'
 - Maintain your current speaking pace
 - Continue working on vocal variety and emphasis
 - Record yourself practicing to build awareness
             """.strip()
             
-            contextual_feedback = {"error": str(e)}
+            contextual_feedback = {"error": str(e), "fallback": True}
             context_applied = False
         
         # Clean up uploaded file
@@ -191,6 +262,75 @@ def analyze_speech():
             "status": "error"
         }), 500
 
+@app.route('/api/v1/test-llm', methods=['POST', 'OPTIONS'])
+def test_llm_recommendations():
+    """Test endpoint for LLM recommendations with sample data"""
+    
+    if request.method == 'OPTIONS':
+        return '', 200
+    
+    try:
+        # Sample speech analysis data
+        sample_speech_analysis = {
+            "transcript": "Um, hello everyone. So, like, today I want to talk about, uh, the importance of communication. You know, it's really important and, um, we should all work on it.",
+            "word_count": 28,
+            "fillers": {
+                "total_fillers": 5,
+                "filler_percentage": 17.9,
+                "fillers": ["um", "uh", "like", "you know", "so"]
+            },
+            "delivery_metrics": {
+                "pace": 135,
+                "vocal_variety": 6.5,
+                "confidence": 7.0,
+                "overall_score": 6.8
+            }
+        }
+        
+        # Get context parameters from request
+        data = request.get_json() or {}
+        user_id = data.get('user_id', 'user123')
+        domain = data.get('domain', 'public_speaking')
+        event_id = data.get('event_id', 'quarterly_review')
+        audience_id = data.get('audience_id', 'clients')
+        
+        # Get context from knowledge servers
+        user_context = llm_interface.user_knowledge_server.get_context(user_id)
+        domain_context = llm_interface.domain_knowledge_server.get_context(domain)
+        event_context = llm_interface.event_knowledge_server.get_context(event_id)
+        audience_context = llm_interface.audience_knowledge_server.get_context(audience_id)
+        
+        # Generate LLM recommendations
+        llm_recommendations = llm_recommender.generate_contextual_recommendations(
+            speech_analysis=sample_speech_analysis,
+            user_context=user_context,
+            domain_context=domain_context,
+            event_context=event_context,
+            audience_context=audience_context
+        )
+        
+        return jsonify({
+            "status": "success",
+            "sample_data": sample_speech_analysis,
+            "context_retrieved": {
+                "user_context": user_context is not None,
+                "domain_context": domain_context is not None,
+                "event_context": event_context is not None,
+                "audience_context": audience_context is not None
+            },
+            "llm_recommendations": llm_recommendations,
+            "llm_endpoint": llm_recommender.llm_endpoint,
+            "model": llm_recommender.model
+        })
+        
+    except Exception as e:
+        print(f"Test LLM error: {str(e)}")
+        traceback.print_exc()
+        return jsonify({
+            "status": "error",
+            "error": str(e)
+        }), 500
+
 @app.route('/api/v1/health', methods=['GET'])
 def health_check():
     """Check health of all knowledge servers"""
@@ -210,10 +350,14 @@ def get_available_options():
         return jsonify({"error": f"Failed to get options: {str(e)}"}), 500
 
 if __name__ == '__main__':
-    print("🚀 Starting Speech Coach API with Knowledge Servers...")
+    print("🚀 Starting Speech Coach API with LLM-Enhanced Knowledge Servers...")
     print("📡 Available endpoints:")
     print("   • GET  /api/v1/health - Check server status")
     print("   • GET  /api/v1/options - Get available options")
     print("   • POST /api/v1/analyze - Analyze speech with file upload")
+    print("   • POST /api/v1/test-llm - Test LLM recommendations")
+    print("🤖 LLM Integration:")
+    print(f"   • Ollama endpoint: {llm_recommender.llm_endpoint}")
+    print(f"   • Model: {llm_recommender.model}")
     print("🌐 CORS enabled for http://localhost:3000")
     app.run(host='0.0.0.0', port=5005, debug=True)
