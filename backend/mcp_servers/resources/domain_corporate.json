@@ -1,0 +1,81 @@
+{
+    "domain_id": "corporate",
+    "name": "Corporate Presentation",
+    "description": "Speaking in business contexts like executive meetings, client presentations, or company updates",
+    "guidelines": {
+        "pace": {
+            "optimal_wpm": 150,
+            "range": [140, 160],
+            "note": "Slightly faster than average to convey confidence and respect time constraints"
+        },
+        "filler_words": {
+            "acceptable_percentage": 1.5,
+            "note": "Minimize fillers to project confidence and clarity"
+        },
+        "language": {
+            "vocabulary": "professional with strategic framing",
+            "structure": "concise with clear bottom line up front",
+            "note": "Use business terminology appropriately; frame messages in terms of value and outcomes"
+        },
+        "delivery": {
+            "emphasis": "confidence and authority",
+            "vocal_variety": "moderate to high, used for emphasis",
+            "note": "Strong opening and closing; maintain eye contact and poised body language"
+        }
+    },
+    "common_pitfalls": [
+        "Too much detail without highlighting key insights",
+        "Lack of clear recommendations or action items",
+        "Not connecting content to business value or strategy",
+        "Speaking too long or going off-topic",
+        "Failing to address stakeholder concerns or perspectives"
+    ],
+    "recommended_practices": [
+        "Start with a concise executive summary",
+        "Use the 'what, so what, now what' framework",
+        "Include relevant metrics and KPIs",
+        "Anticipate questions and objections",
+        "End with clear next steps and ownership",
+        "Practice handling interruptions gracefully"
+    ],
+    "example_phrases": {
+        "transitions": [
+            "The key takeaway here is...",
+            "This directly impacts our bottom line by...",
+            "From a strategic perspective...",
+            "Looking at this from the market perspective..."
+        ],
+        "stakeholder_management": [
+            "To address your concern about X...",
+            "That's an excellent question about...",
+            "Building on that point...",
+            "Let me address the ROI question specifically..."
+        ]
+    },
+    "skill_levels": {
+        "beginner": {
+            "focus_areas": ["message clarity", "time management", "handling basic questions"],
+            "tips": [
+                "Prepare a concise core message and supporting points",
+                "Practice with a timer to respect time constraints",
+                "Anticipate basic questions about your content"
+            ]
+        },
+        "intermediate": {
+            "focus_areas": ["stakeholder management", "handling objections", "executive presence"],
+            "tips": [
+                "Map stakeholder concerns before presentations",
+                "Prepare for challenging questions and objections",
+                "Work on vocal variety and authoritative delivery"
+            ]
+        },
+        "advanced": {
+            "focus_areas": ["strategic framing", "executive influence", "adaptive communication"],
+            "tips": [
+                "Frame all communications in terms of strategic impact",
+                "Master the art of communicating upward, downward and laterally",
+                "Develop the ability to pivot and adapt in real-time"
+            ]
+        }
+    }
+}

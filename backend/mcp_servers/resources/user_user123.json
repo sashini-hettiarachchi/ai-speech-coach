@@ -1,0 +1,85 @@
+{
+    "user_id": "user123",
+    "name": "Alex Johnson",
+    "email": "alex@example.com",
+    "skill_level": "intermediate",
+    "preferences": {
+        "preferred_domains": ["technical", "corporate"],
+        "favorite_metrics": ["pace", "filler_words"],
+        "feedback_focus": "actionable recommendations"
+    },
+    "strengths": [
+        "Clear technical explanations",
+        "Logical structure",
+        "Visual aids usage"
+    ],
+    "improvement_areas": [
+        "Reducing filler words",
+        "Improving pace variation",
+        "Adding more engaging openings"
+    ],
+    "speech_history": [
+        {
+            "date": "2023-11-15",
+            "title": "Product Update Presentation",
+            "domain": "technical",
+            "audience": "engineering_team",
+            "duration_minutes": 18,
+            "metrics": {
+                "pace_wpm": 158,
+                "filler_words": 4.8,
+                "vocal_variety": 6.2,
+                "overall_score": 7.5
+            },
+            "key_feedback": "Good technical depth but spoke too quickly through complex sections"
+        },
+        {
+            "date": "2024-02-03",
+            "title": "Quarterly Business Review",
+            "domain": "corporate",
+            "audience": "executives",
+            "duration_minutes": 12,
+            "metrics": {
+                "pace_wpm": 145,
+                "filler_words": 3.2,
+                "vocal_variety": 6.8,
+                "overall_score": 7.8
+            },
+            "key_feedback": "Good executive summary but used too many filler words when handling questions"
+        }
+    ],
+    "progress": {
+        "pace": {
+            "trend": "improving",
+            "recent_average": 145,
+            "target": 140
+        },
+        "filler_words": {
+            "trend": "improving",
+            "recent_average": 3.2,
+            "target": 2.0
+        },
+        "vocal_variety": {
+            "trend": "stable",
+            "recent_average": 6.5,
+            "target": 8.0
+        }
+    },
+    "personalized_tips": [
+        "Try pausing instead of using filler words when gathering your thoughts",
+        "Practice slowing down during technical explanations with deliberate pauses",
+        "Work on adding vocal emphasis to key points to improve engagement"
+    ],
+    "learning_resources": [
+        {
+            "title": "Handling Technical Q&A",
+            "type": "article",
+            "completed": true
+        },
+        {
+            "title": "Executive Presence Workshop",
+            "type": "workshop",
+            "completed": false
+        }
+    ]
+}

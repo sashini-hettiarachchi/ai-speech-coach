@@ -1,0 +1,81 @@
+{
+    "domain_id": "casual",
+    "name": "Casual Speaking",
+    "description": "Informal communication settings such as team updates, social gatherings, or community events",
+    "guidelines": {
+        "pace": {
+            "optimal_wpm": 160,
+            "range": [150, 170],
+            "note": "Slightly faster than average to maintain engagement in informal settings"
+        },
+        "filler_words": {
+            "acceptable_percentage": 4.0,
+            "note": "More relaxed standards for fillers in casual contexts"
+        },
+        "language": {
+            "vocabulary": "everyday language with some colloquialisms",
+            "structure": "conversational flow with clear main points",
+            "note": "Balance between structure and natural conversation; avoid overly formal language"
+        },
+        "delivery": {
+            "emphasis": "authenticity and connection",
+            "vocal_variety": "high, natural conversational tone",
+            "note": "More animated expressions and gestures are appropriate"
+        }
+    },
+    "common_pitfalls": [
+        "Being too formal or stiff",
+        "Rambling without clear purpose",
+        "Not reading the room or adapting to audience",
+        "Inappropriate humor or oversharing",
+        "Neglecting to include everyone in the conversation"
+    ],
+    "recommended_practices": [
+        "Start with brief connection or ice-breaker",
+        "Have 2-3 key points to maintain focus",
+        "Use personal stories or relevant examples",
+        "Include questions to encourage participation",
+        "Be mindful of time even in casual settings",
+        "End with clear takeaway or next steps"
+    ],
+    "example_phrases": {
+        "openers": [
+            "Before we dive in, quick question for everyone...",
+            "I was thinking about this the other day...",
+            "Something interesting came up that I wanted to share...",
+            "Has anyone else noticed that..."
+        ],
+        "engagement": [
+            "What do you all think about...?",
+            "Has anyone had a similar experience?",
+            "I'm curious to hear your thoughts on...",
+            "Let me know if this resonates with you..."
+        ]
+    },
+    "skill_levels": {
+        "beginner": {
+            "focus_areas": ["basic structure", "reading the room", "appropriate sharing"],
+            "tips": [
+                "Have a mental outline of 2-3 points before speaking",
+                "Notice audience reactions and adjust accordingly",
+                "Practice the art of brevity even in casual settings"
+            ]
+        },
+        "intermediate": {
+            "focus_areas": ["storytelling", "inclusive conversation", "seamless transitions"],
+            "tips": [
+                "Develop relevant stories that illustrate your points",
+                "Involve quieter members of the group naturally",
+                "Practice smooth transitions between topics"
+            ]
+        },
+        "advanced": {
+            "focus_areas": ["adaptive speaking", "facilitation", "memorable moments"],
+            "tips": [
+                "Flex between formal and casual as appropriate",
+                "Guide group dynamics subtly without controlling",
+                "Create moments of connection that resonate"
+            ]
+        }
+    }
+}

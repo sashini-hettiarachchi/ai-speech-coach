@@ -1,0 +1,63 @@
+{
+    "audience_id": "academic",
+    "name": "Academic Audience",
+    "description": "Scholars, researchers, professors, and students within higher education or research institutions",
+    "characteristics": {
+        "knowledge_level": "Deep in specific domains, analytical mindset",
+        "expectations": "Rigor, evidence, methodology, and theoretical framing",
+        "attention_span": "Extended for relevant scholarly content with proper structure",
+        "typical_objections": "Questions about methodology, theoretical foundations, alternative interpretations"
+    },
+    "preferences": {
+        "content": {
+            "depth": "Thorough exploration with appropriate context",
+            "evidence": "Data, peer-reviewed literature, methodological details",
+            "logical_flow": "Clear research framework with systematic progression"
+        },
+        "delivery": {
+            "pace": "Measured, with time for processing complex ideas",
+            "language": "Discipline-appropriate terminology with proper definitions",
+            "interaction": "Substantive Q&A focused on methods and implications"
+        },
+        "visual_elements": {
+            "importance": "High",
+            "preferred_types": "Data visualizations, theoretical models, evidence summaries"
+        }
+    },
+    "engagement_strategies": [
+        "Position work within relevant theoretical frameworks",
+        "Acknowledge key literature and contributions",
+        "Present clear methodological rationale",
+        "Address limitations and alternative interpretations",
+        "Connect findings to broader scholarly discourse",
+        "Suggest implications for future research"
+    ],
+    "communication_pitfalls": [
+        "Insufficient methodological detail",
+        "Overstating conclusions beyond what data supports",
+        "Neglecting relevant literature or perspectives",
+        "Poor handling of limitations",
+        "Dismissing valid critiques or questions",
+        "Failing to connect to theoretical frameworks"
+    ],
+    "effective_approaches": {
+        "opening": "Establish research context and significance",
+        "structure": "Conventional research format appropriate to discipline",
+        "examples": "Illustrative cases or detailed evidence",
+        "handling_questions": "Thoughtful engagement with intellectual curiosity"
+    },
+    "segment_variations": {
+        "specialist": {
+            "focus": "Deep disciplinary details and methodological specifics",
+            "approach": "Engage with specialized terminology and concepts"
+        },
+        "interdisciplinary": {
+            "focus": "Broader implications and cross-disciplinary connections",
+            "approach": "Define specialized terms and emphasize relevance"
+        },
+        "student": {
+            "focus": "Learning outcomes and fundamental concepts",
+            "approach": "More scaffolding and contextual background"
+        }
+    }
+}

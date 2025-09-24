@@ -1,0 +1,154 @@
+{
+  "version": "1.0",
+  "export_timestamp": "2025-09-24",
+  "audiences": {
+    "executives": {
+      "audience_id": "executives",
+      "name": "Executive Leadership Team",
+      "size_range": "5-15",
+      "technical_knowledge": "mixed",
+      "primary_interests": [
+        "Business impact",
+        "Strategic alignment",
+        "ROI",
+        "Risk management"
+      ],
+      "communication_preferences": {
+        "content_style": "concise and data-driven",
+        "presentation_style": "executive summary with supporting detail available",
+        "language_level": "business terminology with limited technical jargon",
+        "question_handling": "direct answers with strategic context"
+      },
+      "engagement_tactics": [
+        "Begin with bottom-line impact",
+        "Use clear visualizations of data",
+        "Address strategic implications early",
+        "Prepare brief, focused responses to questions",
+        "Include actionable recommendations"
+      ],
+      "challenges": [
+        "Limited time and attention span",
+        "Diverse backgrounds and expertise levels",
+        "High expectations for polished delivery",
+        "Need to balance detail with strategic overview"
+      ],
+      "success_metrics": [
+        "Clear decisions made",
+        "Strategic questions addressed",
+        "Perception of presenter credibility",
+        "Follow-up actions initiated"
+      ]
+    },
+    "technical_team": {
+      "audience_id": "technical_team",
+      "name": "Technical Implementation Team",
+      "size_range": "10-30",
+      "technical_knowledge": "high",
+      "primary_interests": [
+        "Technical specifications",
+        "Implementation details",
+        "Potential challenges",
+        "Best practices"
+      ],
+      "communication_preferences": {
+        "content_style": "detailed and precise",
+        "presentation_style": "logical progression with technical demonstrations",
+        "language_level": "technical terminology appropriate to domain",
+        "question_handling": "detailed technical responses with examples"
+      },
+      "engagement_tactics": [
+        "Provide code or configuration examples",
+        "Include architectural diagrams",
+        "Discuss edge cases and exception handling",
+        "Reference technical documentation",
+        "Demonstrate practical implementation"
+      ],
+      "challenges": [
+        "Varying levels of specialized knowledge",
+        "Potential skepticism of new approaches",
+        "Need for specific, actionable details",
+        "Expectations for technical accuracy"
+      ],
+      "success_metrics": [
+        "Technical questions successfully addressed",
+        "Implementation path clarity",
+        "Confidence in technical approach",
+        "Practical understanding achieved"
+      ]
+    },
+    "clients": {
+      "audience_id": "clients",
+      "name": "Client Representatives",
+      "size_range": "3-20",
+      "technical_knowledge": "varied",
+      "primary_interests": [
+        "Value proposition",
+        "Cost and ROI",
+        "Implementation effort",
+        "Support and maintenance"
+      ],
+      "communication_preferences": {
+        "content_style": "benefit-focused with supporting evidence",
+        "presentation_style": "polished, professional with client-specific examples",
+        "language_level": "accessible business language with limited jargon",
+        "question_handling": "transparent answers with focus on client needs"
+      },
+      "engagement_tactics": [
+        "Relate content to client's specific challenges",
+        "Include relevant case studies and testimonials",
+        "Provide clear cost/benefit analysis",
+        "Allow time for relationship building",
+        "Balance features with benefits"
+      ],
+      "challenges": [
+        "Multiple stakeholders with different priorities",
+        "Need to build trust and credibility",
+        "Potential resistance to change or cost",
+        "Expectations for personalization"
+      ],
+      "success_metrics": [
+        "Client questions adequately addressed",
+        "Next steps agreed upon",
+        "Positive feedback on presentation",
+        "Movement in client decision process"
+      ]
+    },
+    "general_public": {
+      "audience_id": "general_public",
+      "name": "General Public Audience",
+      "size_range": "30+",
+      "technical_knowledge": "low to moderate",
+      "primary_interests": [
+        "Personal relevance",
+        "Practical applications",
+        "Engaging stories",
+        "Clear takeaways"
+      ],
+      "communication_preferences": {
+        "content_style": "relatable with stories and examples",
+        "presentation_style": "engaging, conversational with visual support",
+        "language_level": "accessible with minimal jargon",
+        "question_handling": "respectful, inclusive responses"
+      },
+      "engagement_tactics": [
+        "Use analogies for complex concepts",
+        "Incorporate storytelling elements",
+        "Include interactive elements when possible",
+        "Connect to common experiences",
+        "Provide memorable takeaways"
+      ],
+      "challenges": [
+        "Wide range of background knowledge",
+        "Varied attention spans and interest levels",
+        "Need for broad accessibility",
+        "Balancing entertainment with information"
+      ],
+      "success_metrics": [
+        "Audience engagement throughout",
+        "Positive feedback and questions",
+        "Social media sharing or discussion",
+        "Message retention after presentation"
+      ]
+    }
+  }
+}

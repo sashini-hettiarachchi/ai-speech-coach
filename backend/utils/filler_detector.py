@@ -3,6 +3,14 @@ import json
 import re
 from typing import Dict, List
 
+# Import configuration with fallback
+try:
+    from config import LLM_ENDPOINT, LLM_MODEL, LLM_TEMPERATURE
+except ImportError:
+    LLM_ENDPOINT = "http://localhost:11434/api/generate"
+    LLM_MODEL = "llama3"
+    LLM_TEMPERATURE = 0
+
 # Comprehensive list of filler words and phrases
 FILLERS = [
     # Basic fillers
@@ -74,13 +82,13 @@ RESPONSE (JSON only):"""
 
     try:
         response = requests.post(
-            "http://localhost:11434/api/generate",
+            LLM_ENDPOINT,
             json={
-                "model": "llama3", 
+                "model": LLM_MODEL, 
                 "prompt": enhanced_prompt, 
                 "stream": False,
                 "options": {
-                    "temperature": 0,
+                    "temperature": LLM_TEMPERATURE,
                     "top_p": 0.9,
                     "num_predict": 200
                 }

@@ -1,0 +1,71 @@
+{
+    "event_id": "interview",
+    "name": "Job Interview",
+    "description": "A formal conversation where a candidate answers questions about their skills, experience, and fit for a role",
+    "requirements": {
+        "structure": {
+            "opening": "Brief self-introduction highlighting relevant background",
+            "body": "Answers to interviewer questions with concrete examples",
+            "closing": "Thoughtful questions and expression of interest in the role"
+        },
+        "delivery": {
+            "pace_wpm": {
+                "optimal": 130,
+                "range": [120, 140]
+            },
+            "vocal_variety": "Moderate importance",
+            "body_language": "Professional, engaged, attentive listening"
+        },
+        "visual_aids": {
+            "importance": "Low (except for portfolio or technical demonstrations)",
+            "recommendations": "Bring printed copies of resume or portfolio if relevant"
+        },
+        "formality_level": "High",
+        "interaction": "Highly interactive, conversational"
+    },
+    "best_practices": [
+        "Research the company and role thoroughly",
+        "Prepare examples using the STAR method (Situation, Task, Action, Result)",
+        "Practice answers to common questions",
+        "Prepare thoughtful questions to ask interviewers",
+        "Listen actively and ask for clarification when needed",
+        "Follow up with a thank-you message"
+    ],
+    "typical_challenges": [
+        "Nervousness and anxiety",
+        "Unexpected or difficult questions",
+        "Technical assessments or case studies",
+        "Multiple interviewers or panel formats",
+        "Virtual interview technical issues",
+        "Discussing salary expectations"
+    ],
+    "audience_expectations": {
+        "engagement": "Authentic, thoughtful responses with good listening",
+        "content": "Relevant experience and examples that demonstrate skills",
+        "materials": "Well-prepared answers and appropriate questions"
+    },
+    "variations": {
+        "behavioral": {
+            "description": "Focus on past experiences as predictors of future performance",
+            "key_differences": "Heavy emphasis on STAR method examples"
+        },
+        "technical": {
+            "description": "Assessment of technical skills and knowledge",
+            "key_differences": "May include demonstrations, whiteboarding, or problem-solving"
+        },
+        "case_interview": {
+            "description": "Problem-solving approach to a business scenario",
+            "key_differences": "Focus on analytical thinking and structured approach"
+        }
+    },
+    "preparation_checklist": [
+        "Research company, role, and interviewers",
+        "Prepare answers to common questions",
+        "Compile 5-7 concrete examples of relevant accomplishments",
+        "Practice delivery with a friend or coach",
+        "Prepare questions to ask interviewers",
+        "Plan professional attire and logistics",
+        "Test technology for virtual interviews",
+        "Bring copies of resume and portfolio if relevant"
+    ]
+}

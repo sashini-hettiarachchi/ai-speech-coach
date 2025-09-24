@@ -1,0 +1,123 @@
+{
+  "version": "1.0",
+  "export_timestamp": "2025-09-24",
+  "domains": {
+    "public_speaking": {
+      "domain": "public_speaking",
+      "name": "General Public Speaking",
+      "structure": {
+        "opening": "Strong hook, clear preview of content",
+        "body": "3-5 main points with supporting evidence",
+        "closing": "Summary and call to action"
+      },
+      "delivery": {
+        "pace": "120-140 words per minute",
+        "pauses": "Use strategic pauses for emphasis",
+        "vocal_variety": "Vary pitch, pace, and volume",
+        "gestures": "Natural, purposeful hand movements"
+      },
+      "best_practices": [
+        "Practice the 'rule of three' for memorable content",
+        "Use the 'PREP' structure: Point, Reason, Example, Point",
+        "Start strong with a compelling opening",
+        "End with a clear call to action",
+        "Know your audience and tailor content accordingly"
+      ],
+      "common_mistakes": [
+        "Reading directly from slides",
+        "Overusing filler words (um, uh, like)",
+        "Speaking too fast when nervous",
+        "Lack of clear structure",
+        "Poor eye contact with audience"
+      ]
+    },
+    "corporate": {
+      "domain": "corporate",
+      "name": "Corporate Communications",
+      "structure": {
+        "opening": "Executive summary approach",
+        "body": "Data-driven points with business impact",
+        "closing": "Clear next steps and ownership"
+      },
+      "delivery": {
+        "pace": "Professional, measured pace",
+        "pauses": "Use pauses to emphasize key metrics",
+        "vocal_variety": "Authoritative but approachable tone",
+        "gestures": "Controlled, professional movements"
+      },
+      "best_practices": [
+        "Lead with business value and ROI",
+        "Use data and metrics to support arguments",
+        "Address potential objections proactively",
+        "Provide clear timeline and next steps",
+        "Maintain professional demeanor throughout"
+      ],
+      "common_mistakes": [
+        "Too much technical detail for executives",
+        "Failing to connect to business outcomes",
+        "Not addressing budget or resource implications",
+        "Overly casual tone in formal settings",
+        "Lack of clear decision points"
+      ]
+    },
+    "technical": {
+      "domain": "technical",
+      "name": "Technical Presentations",
+      "structure": {
+        "opening": "Problem statement and solution overview",
+        "body": "Technical deep-dive with logical progression",
+        "closing": "Implementation steps and technical implications"
+      },
+      "delivery": {
+        "pace": "Slower pace for complex concepts",
+        "pauses": "Allow time for technical concept absorption",
+        "vocal_variety": "Clear enunciation of technical terms",
+        "gestures": "Use hands to illustrate concepts and flows"
+      },
+      "best_practices": [
+        "Use visual aids extensively for complex concepts",
+        "Provide code examples or technical demonstrations",
+        "Layer information from simple to complex",
+        "Anticipate technical questions and prepare answers",
+        "Share relevant documentation and resources"
+      ],
+      "common_mistakes": [
+        "Assuming all audience members have same technical level",
+        "Moving too quickly through complex concepts",
+        "Not providing enough visual or practical examples",
+        "Failing to explain the 'why' behind technical decisions",
+        "Overloading slides with too much technical detail"
+      ]
+    },
+    "academic": {
+      "domain": "academic",
+      "name": "Academic Presentations",
+      "structure": {
+        "opening": "Research question and methodology overview",
+        "body": "Literature review, findings, analysis",
+        "closing": "Conclusions, limitations, future research"
+      },
+      "delivery": {
+        "pace": "Measured pace allowing for note-taking",
+        "pauses": "Pause after key findings or insights",
+        "vocal_variety": "Scholarly tone with appropriate enthusiasm",
+        "gestures": "Academic-appropriate, supportive gestures"
+      },
+      "best_practices": [
+        "Clearly state research question and methodology",
+        "Provide sufficient background and literature context",
+        "Present findings objectively with appropriate caveats",
+        "Acknowledge limitations and alternative interpretations",
+        "Suggest concrete areas for future research"
+      ],
+      "common_mistakes": [
+        "Insufficient context for non-specialist audience",
+        "Overstating the significance of findings",
+        "Not acknowledging research limitations",
+        "Poor time management for academic format",
+        "Failing to engage with existing literature adequately"
+      ]
+    }
+  },
+  "available_focus_areas": ["structure", "delivery", "best_practices", "common_mistakes", "all"]
+}

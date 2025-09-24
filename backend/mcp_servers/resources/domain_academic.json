@@ -1,0 +1,81 @@
+{
+    "domain_id": "academic",
+    "name": "Academic Presentation",
+    "description": "Speaking in academic contexts such as research presentations, lectures, conference talks, or thesis defenses",
+    "guidelines": {
+        "pace": {
+            "optimal_wpm": 125,
+            "range": [115, 135],
+            "note": "Slower than average to allow for complex concept absorption"
+        },
+        "filler_words": {
+            "acceptable_percentage": 2.5,
+            "note": "Minimize fillers but some are acceptable during complex explanations"
+        },
+        "language": {
+            "vocabulary": "discipline-specific with appropriate contextualization",
+            "structure": "methodical progression with clear research framework",
+            "note": "Balance specialist terminology with accessibility; define key terms"
+        },
+        "delivery": {
+            "emphasis": "clarity and precision with methodological rigor",
+            "vocal_variety": "moderate, used to highlight key findings",
+            "note": "Deliberate pacing with pauses after significant points"
+        }
+    },
+    "common_pitfalls": [
+        "Overloading with too much information or data",
+        "Assuming too much background knowledge",
+        "Not adequately addressing limitations or alternative interpretations",
+        "Poor visualization of complex data",
+        "Failing to connect research to broader implications"
+    ],
+    "recommended_practices": [
+        "Begin with research context and significance",
+        "Present clear research questions or objectives",
+        "Describe methodology with appropriate detail",
+        "Present findings with visual support",
+        "Discuss limitations and future directions",
+        "Connect to broader literature or implications"
+    ],
+    "example_phrases": {
+        "transitions": [
+            "Having established the background, I will now present the methodology...",
+            "These findings suggest several important implications...",
+            "When we analyze these results in context...",
+            "Turning now to the limitations of this study..."
+        ],
+        "academic_hedging": [
+            "The evidence suggests that...",
+            "These findings appear to indicate...",
+            "One possible interpretation is...",
+            "This may be attributed to..."
+        ]
+    },
+    "skill_levels": {
+        "beginner": {
+            "focus_areas": ["basic research structure", "clarity of key concepts", "handling questions"],
+            "tips": [
+                "Use a clear, conventional structure for your discipline",
+                "Practice explaining complex concepts simply",
+                "Prepare for basic methodological questions"
+            ]
+        },
+        "intermediate": {
+            "focus_areas": ["methodological justification", "literature integration", "discussion of limitations"],
+            "tips": [
+                "Strengthen your rationale for methodological choices",
+                "Show connections to relevant literature throughout",
+                "Address limitations proactively and thoughtfully"
+            ]
+        },
+        "advanced": {
+            "focus_areas": ["theoretical contributions", "handling expert criticism", "research leadership"],
+            "tips": [
+                "Articulate theoretical and practical significance clearly",
+                "Prepare for and welcome sophisticated critiques",
+                "Position your work within future research directions"
+            ]
+        }
+    }
+}

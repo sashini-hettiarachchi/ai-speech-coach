@@ -3,12 +3,21 @@ import json
 import re
 from typing import Dict, List, Optional
 
+# Import configuration
+try:
+    from config import LLM_ENDPOINT, LLM_MODEL, LLM_TEMPERATURE
+except ImportError:
+    # Fallback values if config not available
+    LLM_ENDPOINT = "http://localhost:11434/api/generate"
+    LLM_MODEL = "llama3"
+    LLM_TEMPERATURE = 0.3
+
 class LLMRecommendationGenerator:
     """
     Enhanced LLM-based recommendation generator that integrates with knowledge servers
     """
     
-    def __init__(self, llm_endpoint="http://localhost:11434/api/generate", model="llama3"):
+    def __init__(self, llm_endpoint=LLM_ENDPOINT, model=LLM_MODEL):
         self.llm_endpoint = llm_endpoint
         self.model = model
     
@@ -131,7 +140,7 @@ Return your response as JSON in this exact format:
             "prompt": prompt,
             "stream": False,
             "options": {
-                "temperature": 0.3,  # Slightly creative but consistent
+                "temperature": LLM_TEMPERATURE,  # Slightly creative but consistent
                 "top_p": 0.9,
                 "num_predict": 1000,  # Allow longer responses
                 "stop": ["\n\n\n"]  # Stop at multiple newlines

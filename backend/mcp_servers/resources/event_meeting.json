@@ -1,0 +1,71 @@
+{
+    "event_id": "meeting",
+    "name": "Business Meeting",
+    "description": "A structured gathering of professionals to share information, make decisions, or solve problems",
+    "requirements": {
+        "structure": {
+            "opening": "Clear purpose and agenda overview",
+            "body": "Organized discussion of agenda items with time allocation",
+            "closing": "Summary of decisions, action items, and next steps"
+        },
+        "delivery": {
+            "pace_wpm": {
+                "optimal": 145,
+                "range": [135, 155]
+            },
+            "vocal_variety": "Moderate importance",
+            "body_language": "Engaged, attentive, professional"
+        },
+        "visual_aids": {
+            "importance": "Medium to low",
+            "recommendations": "Simple slides or handouts for complex information only"
+        },
+        "formality_level": "Medium",
+        "interaction": "Highly interactive with facilitated discussion"
+    },
+    "best_practices": [
+        "Distribute agenda in advance with time allocations",
+        "Start and end on time",
+        "Keep discussion focused on agenda items",
+        "Encourage participation from all attendees",
+        "Document decisions and action items with owners",
+        "Follow up with meeting notes and next steps"
+    ],
+    "typical_challenges": [
+        "Keeping to time constraints",
+        "Managing dominant participants",
+        "Encouraging quieter participants",
+        "Staying on topic",
+        "Reaching clear decisions",
+        "Ensuring follow-through on action items"
+    ],
+    "audience_expectations": {
+        "engagement": "Relevant contributions and active listening",
+        "content": "Prepared, concise, and relevant to meeting purpose",
+        "materials": "Necessary references or data to support discussion"
+    },
+    "variations": {
+        "status_update": {
+            "description": "Regular meeting to share progress updates",
+            "key_differences": "More structured reporting, less discussion"
+        },
+        "decision_making": {
+            "description": "Meeting to reach consensus on important matters",
+            "key_differences": "More debate and deliberation, clear decision framework"
+        },
+        "brainstorming": {
+            "description": "Creative idea generation session",
+            "key_differences": "Less structure, emphasis on psychological safety and creativity"
+        }
+    },
+    "preparation_checklist": [
+        "Define clear meeting objective",
+        "Create and distribute focused agenda",
+        "Identify and invite necessary participants",
+        "Prepare relevant materials or data",
+        "Review previous meeting notes if applicable",
+        "Plan facilitation approach for key discussions",
+        "Prepare your own contributions",
+        "Test any technology requirements"
+    ]
+}

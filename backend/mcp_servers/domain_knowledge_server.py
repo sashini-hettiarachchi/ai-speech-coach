@@ -239,6 +239,8 @@ class DomainKnowledgeBase:
     
     def analyze_speech_against_domain(self, domain: Union[str, SpeakingDomain], speech_metrics: Dict[str, Any]) -> Dict[str, Any]:
         """Analyze speech metrics against domain-specific criteria"""
+        import datetime
+        
         if isinstance(domain, str):
             domain = domain.lower()
         else:
@@ -252,7 +254,7 @@ class DomainKnowledgeBase:
         analysis = {
             "domain": domain_data.name,
             "domain_id": domain,
-            "analysis_timestamp": "2025-09-21",
+            "analysis_timestamp": datetime.datetime.now().isoformat(),
             "overall_score": 0,
             "detailed_analysis": {},
             "domain_specific_recommendations": [],
@@ -481,7 +483,75 @@ class DomainKnowledgeServer:
     
     def __init__(self):
         self.knowledge_base = DomainKnowledgeBase()
-        logger.info("Domain Knowledge Server initialized")
+        
+        # Initialize LLM integration
+        try:
+            from utils.llm_recommendations import LLMRecommendationGenerator
+            self.llm_recommender = LLMRecommendationGenerator()
+            self.llm_enabled = True
+            logger.info("Domain Knowledge Server initialized with LLM support")
+        except ImportError:
+            self.llm_enabled = False
+            logger.warning("Domain Knowledge Server initialized without LLM support (utils.llm_recommendations not available)")
+    
+    def _enhance_analysis_with_llm(self, base_analysis: Dict[str, Any], speech_metrics: Dict[str, Any], domain: str) -> Dict[str, Any]:
+        """Use LLM to enhance domain analysis with more personalized recommendations"""
+        if not self.llm_enabled:
+            return base_analysis  # Return the basic analysis if LLM is not available
+            
+        try:
+            # Create a simplified speech analysis object for LLM
+            speech_analysis = {
+                "transcript": speech_metrics.get("transcript", ""),
+                "word_count": speech_metrics.get("word_count", 100),
+                "fillers": {
+                    "total_fillers": speech_metrics.get("filler_count", 0),
+                    "filler_percentage": speech_metrics.get("filler_percentage", 0),
+                    "fillers": speech_metrics.get("fillers", ["um", "uh"])
+                },
+                "delivery_metrics": {
+                    "pace": speech_metrics.get("pace_wpm", 140),
+                    "vocal_variety": speech_metrics.get("vocal_variety", 7.5),
+                    "confidence": speech_metrics.get("confidence_score", 7.0),
+                    "overall_score": speech_metrics.get("overall_score", 7.0)
+                }
+            }
+            
+            # Get domain context from knowledge base
+            domain_context = self.knowledge_base.get_domain_guidelines(domain)
+            
+            # Generate LLM-based recommendations
+            llm_response = self.llm_recommender.generate_contextual_recommendations(
+                speech_analysis=speech_analysis,
+                domain_context=domain_context
+            )
+            
+            # Enhance the base analysis with LLM-generated recommendations
+            enhanced_analysis = base_analysis.copy()
+            
+            # Replace hardcoded recommendations with LLM-generated ones
+            if "specific_recommendations" in llm_response:
+                enhanced_recommendations = []
+                for rec in llm_response["specific_recommendations"]:
+                    enhanced_recommendations.append(rec["recommendation"])
+                
+                # Ensure we have at least one recommendation
+                if enhanced_recommendations:
+                    enhanced_analysis["domain_specific_recommendations"] = enhanced_recommendations[:3]
+            
+            # Add LLM insights section
+            enhanced_analysis["llm_insights"] = {
+                "strengths": llm_response.get("strengths", []),
+                "areas_for_improvement": llm_response.get("areas_for_improvement", []),
+                "context_specific_tips": llm_response.get("context_specific_tips", []),
+                "generated_by": "LLM"
+            }
+            
+            return enhanced_analysis
+            
+        except Exception as e:
+            logger.error(f"Error enhancing analysis with LLM: {str(e)}")
+            return base_analysis  # Fall back to basic analysis
     
     def get_context_for_llm(self, query_type: str, **kwargs) -> Dict[str, Any]:
         """
@@ -502,7 +572,15 @@ class DomainKnowledgeServer:
             elif query_type == "analyze_speech":
                 domain = kwargs.get("domain", "public_speaking")
                 speech_metrics = kwargs.get("speech_metrics", {})
-                return self.knowledge_base.analyze_speech_against_domain(domain, speech_metrics)
+                
+                # First get the base analysis
+                base_analysis = self.knowledge_base.analyze_speech_against_domain(domain, speech_metrics)
+                
+                # If LLM is enabled, enhance the analysis
+                if self.llm_enabled:
+                    return self._enhance_analysis_with_llm(base_analysis, speech_metrics, domain)
+                
+                return base_analysis
             
             elif query_type == "improvement_plan":
                 domain = kwargs.get("domain", "public_speaking")
