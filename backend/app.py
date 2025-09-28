@@ -20,7 +20,7 @@ from utils.delivery_metrics import analyze_delivery
 from utils.filler_detector import count_filler_words
 
 # Import MCP Knowledge Interface
-from mcp_servers.mcp_interface import MCPKnowledgeInterface
+
 
 app = Flask(__name__)
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -32,8 +32,6 @@ CORS(app,
      allow_headers=CORS_HEADERS,
      supports_credentials=CORS_SUPPORTS_CREDENTIALS)
 
-# Initialize the MCP Knowledge Interface
-mcp_interface = MCPKnowledgeInterface()
 
 @app.after_request
 def after_request(response):
@@ -105,69 +103,13 @@ def analyze_speech():
             "overall_score": delivery_analysis.get("overall_score", 7.8)
         }
         
-        # Step 4: Get contextual information from MCP servers
-        user_profile = mcp_interface.get_user_profile(user_id)
-        domain_guidelines = mcp_interface.get_domain_guidelines(domain_id)
-        
-        event_guidelines = {}
-        if event_id:
-            event_guidelines = mcp_interface.get_event_guidelines(event_id)
-        
-        audience_insights = {}
-        if audience_id:
-            audience_insights = mcp_interface.get_audience_insights(audience_id)
-            
-        # Step 5: Build context-aware speech data
-        speech_data = {
-            "domain_id": domain_id,
-            "user_id": user_id,
-            "event_id": event_id,
-            "audience_id": audience_id,
-            "metrics": speech_metrics,
-            "transcript": transcript,
-            "user_profile": user_profile,
-            "domain_guidelines": domain_guidelines,
-            "event_guidelines": event_guidelines,
-            "audience_insights": audience_insights
-        }
+     
+ 
         
         # Step 6: Generate MCP-enhanced feedback with LLM
         print("🧠 Generating context-aware feedback...")
-        mcp_feedback = mcp_interface.generate_enhanced_feedback(speech_data)
-        
-        # Step 7: Generate traditional feedback
-        print("🤖 Generating traditional feedback...")
-        traditional_feedback = mcp_interface.generate_traditional_feedback({
-            "transcript": transcript,
-            "filler_analysis": filler_analysis,
-            "delivery_metrics": delivery_analysis
-        })
-        
-        # Step 8: Compile response
-        response_data = {
-            "status": "success",
-            "transcript": transcript,
-            "filler_words": {
-                "total_fillers": filler_analysis.get("total_fillers", 0),
-                "filler_percentage": filler_analysis.get("filler_percentage", 0),
-                "fillers": filler_analysis.get("fillers", [])
-            },
-            "delivery_metrics": {
-                "pace_wpm": delivery_analysis.get("pace", 140),
-                "vocal_variety": delivery_analysis.get("vocal_variety", 7.5),
-                "confidence_score": delivery_analysis.get("confidence", 8.0)
-            },
-            "mcp_enhanced_feedback": {
-                "strengths": mcp_feedback.get("strengths", []),
-                "improvements": mcp_feedback.get("improvements", []),
-                "revised_speech": mcp_feedback.get("revised_speech", "")
-            },
-            "traditional_feedback": {
-                "strengths": traditional_feedback.get("strengths", []),
-                "improvements": traditional_feedback.get("improvements", []),
-                "revised_speech": traditional_feedback.get("revised_speech", "")
-            }
-        }
+     
+    
         
         # Clean up uploaded file
         try:
@@ -176,7 +118,7 @@ def analyze_speech():
             print(f"⚠️ Could not remove file {filepath}: {e}")
         
         print("✅ Analysis completed successfully")
-        return jsonify(response_data)
+   
         
     except Exception as e:
         print(f"❌ Error in speech analysis: {str(e)}")
@@ -201,57 +143,6 @@ def health_check():
     except Exception as e:
         return jsonify({"error": f"Health check failed: {str(e)}"}), 500
 
-@app.route('/api/v1/options', methods=['GET'])
-def get_available_options():
-    """Get all available users, domains, events, and audiences"""
-    try:
-        # Get resources from MCP servers - since we're reusing the same server instance for all clients
-        # we only need to get resources from the domain client
-        response = mcp_interface.domain_client._send_request("resources/list")
-        resources = response.get("result", {}).get("resources", [])
-        
-        # Extract options from resources
-        domains = []
-        users = []
-        events = []
-        audiences = []
-        
-        for resource in resources:
-            uri = resource.get("uri", "")
-            
-            if uri.startswith("domain://") and not uri.endswith("available-domains"):
-                domain_id = uri.replace("domain://", "")
-                domains.append({
-                    "id": domain_id,
-                    "name": resource.get("title", domain_id)
-                })
-            elif uri.startswith("user://"):
-                user_id = uri.replace("user://", "")
-                users.append({
-                    "id": user_id,
-                    "name": resource.get("title", user_id)
-                })
-            elif uri.startswith("event://"):
-                event_id = uri.replace("event://", "")
-                events.append({
-                    "id": event_id,
-                    "name": resource.get("title", event_id)
-                })
-            elif uri.startswith("audience://"):
-                audience_id = uri.replace("audience://", "")
-                audiences.append({
-                    "id": audience_id,
-                    "name": resource.get("title", audience_id)
-                })
-        
-        return jsonify({
-            "domains": domains,
-            "users": users,
-            "events": events,
-            "audiences": audiences
-        })
-    except Exception as e:
-        return jsonify({"error": f"Failed to get options: {str(e)}"}), 500
 
 if __name__ == '__main__':
     print("🚀 Starting Speech Coach API with MCP-Enhanced Knowledge Servers...")
