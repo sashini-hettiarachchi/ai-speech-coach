@@ -68,12 +68,9 @@ INSTRUCTIONS:
 1. Count each filler word occurrence (case-insensitive)
 2. Include multi-word phrases like "you know", "I mean"
 3. Don't count words when they have semantic meaning
-4. Return ONLY a valid JSON object in this exact format:
-
-{{
-  "filler_counts": {{"um": 2, "like": 1, "you know": 3}},
-  "total_fillers": 6
-}}
+4. Return ONLY a valid JSON object in this exact format in json
+example response:
+{{"filler_counts": {{"um": 3, "like": 5, "you know": 2}}, "total_fillers": 10}}
 
 TRANSCRIPT TO ANALYZE:
 "{transcript}"
@@ -93,7 +90,7 @@ RESPONSE (JSON only):"""
                     "num_predict": 200
                 }
             },
-            timeout=30
+            timeout=3000
         )
         
         if response.status_code != 200:

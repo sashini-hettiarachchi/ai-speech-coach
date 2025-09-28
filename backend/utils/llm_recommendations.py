@@ -56,25 +56,19 @@ class LLMRecommendationGenerator:
         
         prompt_parts = []
         
-        # System prompt
-        prompt_parts.append("""You are an expert speech coach providing personalized feedback. 
+        # System prompt - use the one provided in speech_analysis if available
+        if "system_prompt" in speech_analysis:
+            prompt_parts.append(speech_analysis["system_prompt"])
+        else:
+            # Default system prompt
+            prompt_parts.append("""You are an expert speech coach providing personalized feedback. 
 Analyze the speech data and context to generate specific, actionable recommendations.
 Return your response as JSON in this exact format:
 
 {
-  "overall_score": 7.5,
-  "strengths": ["Clear articulation", "Good pacing"],
-  "areas_for_improvement": ["Reduce filler words", "Increase vocal variety"],
-  "specific_recommendations": [
-    {
-      "category": "Delivery",
-      "recommendation": "Practice pausing instead of using filler words",
-      "rationale": "Based on 5 'um' instances detected",
-      "priority": "high"
-    }
-  ],
-  "context_specific_tips": ["Tip 1", "Tip 2"],
-  "next_steps": ["Action 1", "Action 2"]
+  "strengths": ["Strength 1", "Strength 2"],
+  "areas_for_improvement": ["Area 1", "Area 2", "Area 3"],
+  "revised_speech": "Full revised version of the speech with improvements"
 }""")
         
         # Speech analysis data
