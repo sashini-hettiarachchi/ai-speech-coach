@@ -21,6 +21,7 @@ export default function Dashboard() {
 	const [transcript, setTranscript] = useState("");
 	const [deliveryMetrics, setDeliveryMetrics] = useState<any>(null);
 	const [audioFile, setAudioFile] = useState<File | null>(null);
+	const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL;
 
 	useEffect(() => {
 		if (!isLoading && !user) {
@@ -41,7 +42,7 @@ export default function Dashboard() {
 		try {
 			const formData = new FormData();
 			formData.append("file", audioFile);
-			const response = await axios.post("http://localhost:5005/api/v1/analyze", formData);
+			const response = await axios.post(`${BASE_URL}/api/v1/analyze`, formData);
 			const data = response.data;
 			setFillerWords(data.fillers);
 			setRecommendations(data.recommendations);
