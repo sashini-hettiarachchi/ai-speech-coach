@@ -75,7 +75,7 @@ def analyze_speech():
         # Get optional parameters for MCP context
         user_id = request.form.get('user_id', 'user123')
         domain_id = request.form.get('domain', 'public_speaking')
-        context_label = request.form.get('context_label', 'professional')
+        context_label = request.form.get('context_label', 'academic')
         
         print(f"🎯 Analysis request - User: {user_id}, Domain: {domain_id}")
         
@@ -136,29 +136,29 @@ def analyze_speech():
         #     print("✅ Video analysis completed")
         
         # Step 6: Calculate competency scores
-        print("🏆 Calculating competency scores...")
-        scorer_input = ScorerToolInput(
-            transcript=transcript,
-            word_count=len(transcript.split()),
-            words_per_minute=prosody_result.words_per_minute,
-            syllables_per_minute=prosody_result.syllables_per_minute,
-            pitch_mean=prosody_result.pitch_mean,
-            pitch_std=prosody_result.pitch_std,
-            volume_mean=prosody_result.volume_mean,
-            volume_std=prosody_result.volume_std,
-            pause_events=prosody_result.pause_events,
-            volume_events=prosody_result.volume_events,
-            pitch_events=prosody_result.pitch_events,
-            speed_events=prosody_result.speed_events,
-            # structure_quality=structure_result.structure_quality,
-            # readability_score=structure_result.readability_score,
-            # pronunciation_score=pronunciation_result.pronunciation_score,
-            # grammar_error_count=len(pronunciation_result.grammar_errors),
-            # Optional video metrics
-            # eye_contact_pct=video_result.eye_contact_pct if video_result else None,
-            # gesture_rate=video_result.gesture_rate if video_result else None,
-            # facial_expressiveness=video_result.facial_expressiveness if video_result else None
-        )
+        # print("🏆 Calculating competency scores...")
+        # scorer_input = ScorerToolInput(
+        #     transcript=transcript,
+        #     word_count=len(transcript.split()),
+        #     words_per_minute=prosody_result.words_per_minute,
+        #     syllables_per_minute=prosody_result.syllables_per_minute,
+        #     pitch_mean=prosody_result.pitch_mean,
+        #     pitch_std=prosody_result.pitch_std,
+        #     volume_mean=prosody_result.volume_mean,
+        #     volume_std=prosody_result.volume_std,
+        #     pause_events=prosody_result.pause_events,
+        #     volume_events=prosody_result.volume_events,
+        #     pitch_events=prosody_result.pitch_events,
+        #     speed_events=prosody_result.speed_events,
+        #     # structure_quality=structure_result.structure_quality,
+        #     # readability_score=structure_result.readability_score,
+        #     # pronunciation_score=pronunciation_result.pronunciation_score,
+        #     # grammar_error_count=len(pronunciation_result.grammar_errors),
+        #     # Optional video metrics
+        #     # eye_contact_pct=video_result.eye_contact_pct if video_result else None,
+        #     # gesture_rate=video_result.gesture_rate if video_result else None,
+        #     # facial_expressiveness=video_result.facial_expressiveness if video_result else None
+        # )
         
         # score_result = tools["scorer"](scorer_input)
         # print("✅ Competency scoring completed")
@@ -167,22 +167,17 @@ def analyze_speech():
         # print("🔍 Performing detailed filler word analysis...")
         filler_result = tools["filler_detector"]({"transcript": transcript, "use_llm": True})
         filler_analysis = filler_result.dict()
-        print(f"✓ Detected {filler_result.total_fillers} filler words ({filler_result.filler_percentage:.1f}%)")
-        
+        print(f"✅ Detected {filler_result.total_fillers} filler words ({filler_result.filler_percentage:.1f}%), filler_result: {filler_result}")
+
         # Step 7: Generate feedback
         print("💭 Generating personalized feedback...")
         feedback_input = {
             "context_label": context_label,
-            # "overall_score": score_result.overall_score,
-            # "competency_scores": score_result.competency_scores.dict(),
-            # "strengths": score_result.strengths,
-            # "areas_for_improvement": score_result.areas_for_improvement,
             "speech_duration": prosody_result.pause_events[-1].end_time if prosody_result.pause_events else 60.0,
-            "filler_percentage": filler_analysis.get('filler_percentage', 
-                               len(prosody_result.filler_events) / max(len(transcript.split()) / 100, 1)),
             "words_per_minute": prosody_result.words_per_minute,
             "transcript": transcript,  # Include transcript for LLM-based feedback
-            "filler_analysis": filler_analysis  # Include detailed filler analysis
+            "filler_analysis": filler_analysis,  # Include detailed filler analysis
+            "prosody_results": prosody_result.dict(),
         }
         
         feedback_result = tools["feedback_generator"](feedback_input)
@@ -203,18 +198,18 @@ def analyze_speech():
                 "transcript": transcript,
                 "segments": [segment.dict() for segment in segments],
                 "audio_prosody": prosody_result.dict(),
-                "structure": structure_result.dict(),
-                "pronunciation": pronunciation_result.dict(),
+                # "structure": structure_result.dict(),
+                # "pronunciation": pronunciation_result.dict(),
                 "filler_analysis": filler_analysis,
-                "scores": score_result.dict(),
+                # "scores": score_result.dict(),
                 "feedback": feedback_result.dict(),
                 "feedback_without_context": feedback_without_context
             }
         }
         
         # Add video analysis if available
-        if video_result:
-            response["analysis"]["video"] = video_result.dict()
+        # if video_result:
+        #     response["analysis"]["video"] = video_result.dict()
             
         # Clean up uploaded file
         try:

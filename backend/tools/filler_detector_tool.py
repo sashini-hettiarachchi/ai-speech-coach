@@ -86,22 +86,22 @@ class FillerDetectorToolOutput(BaseModel):
         default_factory=list,
         description="Detailed list of filler words with positions"
     )
-    most_common_filler: Optional[str] = Field(
-        None,
-        description="The most frequently used filler word/phrase"
-    )
-    analysis: str = Field(
-        ...,
-        description="Human-readable analysis of filler word usage"
-    )
-    improvement_tip: Optional[str] = Field(
-        None,
-        description="Specific tip for reducing the most common filler word"
-    )
-    analysis_method: str = Field(
-        ...,
-        description="Method used for analysis: 'llm' or 'rule_based'"
-    )
+    # most_common_filler: Optional[str] = Field(
+    #     None,
+    #     description="The most frequently used filler word/phrase"
+    # )
+    # analysis: str = Field(
+    #     ...,
+    #     description="Human-readable analysis of filler word usage"
+    # )
+    # improvement_tip: Optional[str] = Field(
+    #     None,
+    #     description="Specific tip for reducing the most common filler word"
+    # )
+    # analysis_method: str = Field(
+    #     ...,
+    #     description="Method used for analysis: 'llm' or 'rule_based'"
+    # )
 
 
 class FillerDetectorTool(BaseTool[FillerDetectorToolInput, FillerDetectorToolOutput]):
@@ -153,22 +153,12 @@ class FillerDetectorTool(BaseTool[FillerDetectorToolInput, FillerDetectorToolOut
                 analysis="No transcript provided for analysis.",
                 analysis_method="none"
             )
-        
-        # Try to use the existing utility function if available
+
         try:
-            if "count_filler_words" in globals():
-                result = count_filler_words(transcript)
-                return self._format_result(result)
+            llm_result = self._analyze_with_llm(transcript, detection_fillers)
+            if llm_result:
+                return llm_result
         except Exception as e:
-            print(f"Error using existing filler detector: {e}")
-        
-        # Otherwise use our internal implementation
-        if inputs.use_llm:
-            try:
-                llm_result = self._analyze_with_llm(transcript, detection_fillers)
-                if llm_result:
-                    return llm_result
-            except Exception as e:
                 print(f"LLM filler analysis failed: {e}")
         
         # Fallback to rule-based analysis
@@ -189,15 +179,18 @@ class FillerDetectorTool(BaseTool[FillerDetectorToolInput, FillerDetectorToolOut
         
         enhanced_prompt = f"""You are a speech analysis expert. Analyze this transcript and count filler words precisely.
 
-FILLER WORDS TO DETECT:
+EXAMPLE FILLER WORDS TO DETECT:
 {', '.join(fillers)}
 
 INSTRUCTIONS:
 1. Count each filler word occurrence (case-insensitive)
 2. Include multi-word phrases like "you know", "I mean"
-3. Don't count words when they have semantic meaning
-4. Return ONLY a valid JSON object in this exact format:
-{{"filler_counts": {{"um": 3, "like": 5, "you know": 2}}, "total_fillers": 10}}
+3. Don't count words when they have semantic meaning, 
+    example: I like cats. (In this sentence, 'like' is not a filler)
+4. Return ONLY a valid JSON object in similar to following format:
+{{"filler_counts": {{filler word: number of occurrences}}}}
+example:
+{{"filler_counts": {{"um": 1, "ah" : 2}}}}
 
 TRANSCRIPT TO ANALYZE:
 "{transcript}"
@@ -297,10 +290,10 @@ RESPONSE (JSON only):"""
         filler_percentage = (total_fillers / word_count * 100) if word_count > 0 else 0
         
         # Find most common filler
-        most_common_filler = max(filler_counts, key=filler_counts.get) if filler_counts else None
+        # most_common_filler = max(filler_counts, key=filler_counts.get) if filler_counts else None
         
         # Generate analysis and improvement tip
-        analysis, improvement_tip = self._generate_analysis(total_fillers, filler_percentage, most_common_filler, filler_counts)
+        # analysis, improvement_tip = self._generate_analysis(total_fillers, filler_percentage, most_common_filler, filler_counts)
         
         return FillerDetectorToolOutput(
             total_fillers=total_fillers,
@@ -308,10 +301,10 @@ RESPONSE (JSON only):"""
             word_count=word_count,
             fillers=filler_counts,
             filler_details=filler_details,
-            most_common_filler=most_common_filler,
-            analysis=analysis,
-            improvement_tip=improvement_tip,
-            analysis_method="rule_based"
+            # most_common_filler=most_common_filler,
+            # analysis=analysis,
+            # improvement_tip=improvement_tip,
+            # analysis_method="rule_based"
         )
     
     def _extract_json_from_llm_response(self, text: str) -> Dict[str, Any]:
@@ -404,44 +397,44 @@ RESPONSE (JSON only):"""
         
         return None
     
-    def _generate_analysis(self, total_fillers: int, filler_percentage: float, 
-                          most_common: str = None, filler_counts: Dict[str, int] = None) -> tuple:
-        """
-        Generate contextual analysis and improvement tip based on filler word usage.
+    # def _generate_analysis(self, total_fillers: int, filler_percentage: float, 
+    #                       most_common: str = None, filler_counts: Dict[str, int] = None) -> tuple:
+    #     """
+    #     Generate contextual analysis and improvement tip based on filler word usage.
         
-        Args:
-            total_fillers: Total number of filler words detected
-            filler_percentage: Percentage of words that are fillers
-            most_common: Most common filler word (if any)
-            filler_counts: Dictionary of filler words with their counts
+    #     Args:
+    #         total_fillers: Total number of filler words detected
+    #         filler_percentage: Percentage of words that are fillers
+    #         most_common: Most common filler word (if any)
+    #         filler_counts: Dictionary of filler words with their counts
             
-        Returns:
-            Tuple of (analysis, improvement_tip)
-        """
+    #     Returns:
+    #         Tuple of (analysis, improvement_tip)
+    #     """
         
-        # Generate contextual analysis
-        if total_fillers == 0:
-            analysis = "Excellent! No filler words detected. Very clear and professional delivery."
-            improvement_tip = None
-        elif filler_percentage < 1:
-            analysis = f"Outstanding delivery! Only {total_fillers} filler words ({filler_percentage:.1f}%) - extremely professional."
-            improvement_tip = "Maintain this excellent level of clarity in future presentations."
-        elif filler_percentage < 3:
-            analysis = f"Great job! {total_fillers} filler words detected ({filler_percentage:.1f}%) - very good delivery with room for minor polish."
-            improvement_tip = "Practice strategic pauses to maintain your already strong delivery."
-        elif filler_percentage < 5:
-            analysis = f"Good delivery with {total_fillers} filler words ({filler_percentage:.1f}%). Consider practicing pauses instead of fillers."
-            improvement_tip = "Try the 'pause and breathe' technique: when tempted to use a filler word, take a breath instead."
-        else:
-            analysis = f"Focus area identified: {total_fillers} filler words ({filler_percentage:.1f}%). Practice reducing these for more professional delivery."
-            improvement_tip = "Record yourself speaking and note when you use filler words. Practice replacing them with confident silence."
+    #     # Generate contextual analysis
+    #     if total_fillers == 0:
+    #         analysis = "Excellent! No filler words detected. Very clear and professional delivery."
+    #         improvement_tip = None
+    #     elif filler_percentage < 1:
+    #         analysis = f"Outstanding delivery! Only {total_fillers} filler words ({filler_percentage:.1f}%) - extremely professional."
+    #         improvement_tip = "Maintain this excellent level of clarity in future presentations."
+    #     elif filler_percentage < 3:
+    #         analysis = f"Great job! {total_fillers} filler words detected ({filler_percentage:.1f}%) - very good delivery with room for minor polish."
+    #         improvement_tip = "Practice strategic pauses to maintain your already strong delivery."
+    #     elif filler_percentage < 5:
+    #         analysis = f"Good delivery with {total_fillers} filler words ({filler_percentage:.1f}%). Consider practicing pauses instead of fillers."
+    #         improvement_tip = "Try the 'pause and breathe' technique: when tempted to use a filler word, take a breath instead."
+    #     else:
+    #         analysis = f"Focus area identified: {total_fillers} filler words ({filler_percentage:.1f}%). Practice reducing these for more professional delivery."
+    #         improvement_tip = "Record yourself speaking and note when you use filler words. Practice replacing them with confident silence."
         
-        # Add most common filler for targeted feedback
-        if most_common and filler_counts:
-            count = filler_counts[most_common]
-            improvement_tip = f"Focus on reducing '{most_common}' - used {count} times. Try to replace it with a brief pause."
+    #     # Add most common filler for targeted feedback
+    #     if most_common and filler_counts:
+    #         count = filler_counts[most_common]
+    #         improvement_tip = f"Focus on reducing '{most_common}' - used {count} times. Try to replace it with a brief pause."
         
-        return analysis, improvement_tip
+    #     return analysis, improvement_tip
     
     def _create_output_from_result(self, result: Dict[str, Any], transcript: str, method: str) -> FillerDetectorToolOutput:
         """
@@ -482,24 +475,24 @@ RESPONSE (JSON only):"""
                 for _ in range(count):
                     filler_details.append(FillerLocation(word=filler))
         
-        # Find most common filler
-        most_common = result.get("most_common_filler")
-        if not most_common and filler_counts:
-            most_common = max(filler_counts, key=filler_counts.get)
+        # # Find most common filler
+        # most_common = result.get("most_common_filler")
+        # if not most_common and filler_counts:
+        #     most_common = max(filler_counts, key=filler_counts.get)
             
-        # Generate analysis and tip if not already provided
-        analysis = result.get("analysis")
-        improvement_tip = result.get("improvement_tip")
+        # # Generate analysis and tip if not already provided
+        # analysis = result.get("analysis")
+        # improvement_tip = result.get("improvement_tip")
         
-        if not analysis or not improvement_tip:
-            new_analysis, new_tip = self._generate_analysis(
-                total_fillers, filler_percentage, most_common, filler_counts
-            )
+        # if not analysis or not improvement_tip:
+        #     new_analysis, new_tip = self._generate_analysis(
+        #         total_fillers, filler_percentage, most_common, filler_counts
+        #     )
             
-            if not analysis:
-                analysis = new_analysis
-            if not improvement_tip:
-                improvement_tip = new_tip
+        #     if not analysis:
+        #         analysis = new_analysis
+        #     if not improvement_tip:
+        #         improvement_tip = new_tip
         
         return FillerDetectorToolOutput(
             total_fillers=total_fillers,
@@ -507,10 +500,10 @@ RESPONSE (JSON only):"""
             word_count=word_count,
             fillers=filler_counts,
             filler_details=filler_details,
-            most_common_filler=most_common,
-            analysis=analysis,
-            improvement_tip=improvement_tip,
-            analysis_method=method
+            # most_common_filler=most_common,
+            # analysis=analysis,
+            # improvement_tip=improvement_tip,
+            # analysis_method=method
         )
     
     def _format_result(self, result: Dict[str, Any]) -> FillerDetectorToolOutput:
@@ -529,10 +522,10 @@ RESPONSE (JSON only):"""
         filler_percentage = result.get("filler_percentage", 0.0)
         word_count = result.get("word_count", 0)
         fillers = result.get("fillers", {})
-        most_common = result.get("most_common_filler")
-        analysis = result.get("analysis", "Analysis not available.")
-        improvement_tip = result.get("improvement_tip")
-        analysis_method = result.get("analysis_method", "external")
+        # most_common = result.get("most_common_filler")
+        # analysis = result.get("analysis", "Analysis not available.")
+        # improvement_tip = result.get("improvement_tip")
+        # analysis_method = result.get("analysis_method", "external")
         
         # Convert filler details
         filler_details = []
@@ -547,8 +540,8 @@ RESPONSE (JSON only):"""
             word_count=word_count,
             fillers=fillers,
             filler_details=filler_details,
-            most_common_filler=most_common,
-            analysis=analysis,
-            improvement_tip=improvement_tip,
-            analysis_method=analysis_method
+            # most_common_filler=most_common,
+            # analysis=analysis,
+            # improvement_tip=improvement_tip,
+            # analysis_method=analysis_method
         )
