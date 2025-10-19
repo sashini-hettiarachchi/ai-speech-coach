@@ -69,6 +69,21 @@ class AudioProsodyToolOutput(BaseModel):
     volume_events: List[VolumeEvent] = Field(default_factory=list, description="Detected volume variations")
     pitch_events: List[PitchEvent] = Field(default_factory=list, description="Detected pitch stress points")
     speed_events: List[SpeedEvent] = Field(default_factory=list, description="Detected speed variations")
+    
+    def dict(self, **kwargs):
+        """Override dict method to ensure proper JSON serialization"""
+        return {
+            "words_per_minute": self.words_per_minute,
+            "syllables_per_minute": self.syllables_per_minute,
+            "pitch_mean": self.pitch_mean,
+            "pitch_std": self.pitch_std,
+            "volume_mean": self.volume_mean,
+            "volume_std": self.volume_std,
+            "pause_events": [event.dict() for event in self.pause_events],
+            "volume_events": [event.dict() for event in self.volume_events],
+            "pitch_events": [event.dict() for event in self.pitch_events],
+            "speed_events": [event.dict() for event in self.speed_events]
+        }
 
 # ---------- TOOL IMPLEMENTATION ----------
 

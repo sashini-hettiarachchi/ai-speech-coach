@@ -91,9 +91,8 @@ def analyze_speech():
         session_title = request.form.get('session_title')  # Optional session title
         if not speech_id:
             return jsonify({"error": "speech_id is required"}), 400
-        
         # Verify speech belongs to user
-        speech = Speech.query.filter_by(id=speech_id, user_id=user.id).first()
+        speech = Speech.query.filter_by(id=int(speech_id), user_id=int(user.id)).first()
         if not speech:
             return jsonify({"error": "Speech not found or access denied"}), 404
         
@@ -227,10 +226,10 @@ def analyze_speech():
                 pitch_std=prosody_result.pitch_std,
                 volume_mean=prosody_result.volume_mean,
                 volume_std=prosody_result.volume_std,
-                pause_events=prosody_result.pause_events,
-                pitch_events=prosody_result.pitch_events,
-                volume_events=prosody_result.volume_events,
-                speed_events=prosody_result.speed_events,
+                pause_events=[event.dict() for event in prosody_result.pause_events],
+                pitch_events=[event.dict() for event in prosody_result.pitch_events],
+                volume_events=[event.dict() for event in prosody_result.volume_events],
+                speed_events=[event.dict() for event in prosody_result.speed_events],
                 duration_seconds=prosody_result.pause_events[-1].end_time if prosody_result.pause_events else 60.0,
                 full_analysis_results={
                     "segments": [segment.dict() for segment in segments],

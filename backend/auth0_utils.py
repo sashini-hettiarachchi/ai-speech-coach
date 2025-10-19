@@ -93,7 +93,6 @@ def get_rsa_key(token):
 def verify_decode_jwt(token):
     """Verify and decode JWT token"""
     rsa_key = get_rsa_key(token)
-    print("RSA Key:", rsa_key)
     
     if rsa_key:
         try:
@@ -104,7 +103,6 @@ def verify_decode_jwt(token):
                 audience=AUTH0_AUDIENCE,
                 issuer=f'https://{AUTH0_DOMAIN}/'
             )
-            print("Auth0 Payload:", payload)
             return payload
 
         except jwt.ExpiredSignatureError:
@@ -163,38 +161,13 @@ def auth0_required(f):
     """
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        # # Skip auth in development mode
-        # if DEVELOPMENT_MODE:
-        #     print("🚧 Development Mode: Skipping Auth0 verification")
-        #     # Create a mock user for development
-        #     from models import db, User
-            
-        #     mock_auth0_id = 'dev-user-123'
-        #     user = User.query.filter_by(auth0_user_id=mock_auth0_id).first()
-        #     if not user:
-        #         user = User(auth0_user_id=mock_auth0_id)
-        #         db.session.add(user)
-        #         db.session.commit()
-        #         print(f"✅ Created development user: {mock_auth0_id}")
-            
-        #     # Add user info to Flask g object
-        #     g.current_user = user
-        #     g.auth0_user_id = mock_auth0_id
-        #     g.auth0_payload = {'sub': mock_auth0_id}
-        #     g.auth0_token = 'dev-token'
-            
-        #     return f(*args, **kwargs)
-        
         try:
             # Get and verify token
             token = get_token_auth_header()
-            print("Auth0 Token:", token)
             payload = verify_decode_jwt(token)
-            print("Auth0 Payload:", payload)
 
             # Extract user ID from token
             auth0_user_id = payload.get('sub')
-            print("Auth0 User ID:", auth0_user_id)
             if not auth0_user_id:
                 raise AuthError({
                     'code': 'invalid_token',
@@ -203,7 +176,6 @@ def auth0_required(f):
             
             # Sync user with database
             user = sync_user_with_database(auth0_user_id)
-            print(f"✅ Synchronized user {auth0_user_id} with database")
             
             # Add user info to Flask g object for use in endpoints
             g.current_user = user
