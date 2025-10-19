@@ -40,7 +40,7 @@ The Speech Coach backend follows the MCP pattern:
 ### API Request
 
 ```bash
-curl -X POST http://localhost:5005/api/v1/analyze \
+curl -X POST http://localhost:5000/api/v1/analyze \
   -F "file=@/path/to/speech.mp3" \
   -F "user_id=user123" \
   -F "domain=public_speaking" \

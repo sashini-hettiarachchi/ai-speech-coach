@@ -36,7 +36,7 @@ Speech Coach is a comprehensive speech analysis and coaching API that uses the M
    ```zsh
    python app.py
    ```
-   The API server will be available at http://localhost:5005/
+   The API server will be available at http://localhost:5000/
 
 ## Architecture
 
@@ -67,7 +67,7 @@ The application uses the Model Context Protocol (MCP) architecture to provide a 
 To analyze an audio file with MCP-integrated feedback:
 
 ```bash
-curl -X POST http://localhost:5005/api/v1/analyze \
+curl -X POST http://localhost:5000/api/v1/analyze \
   -F "file=@/path/to/your/audiofile.wav" \
   -F "user_id=user123" \
   -F "domain=public_speaking" \
@@ -80,7 +80,7 @@ curl -X POST http://localhost:5005/api/v1/analyze \
 To get comprehensive context using the MCP protocol:
 
 ```bash
-curl -X POST http://localhost:5005/api/v1/mcp/context \
+curl -X POST http://localhost:5000/api/v1/mcp/context \
   -H "Content-Type: application/json" \
   -d '{
     "user_id": "user123",
@@ -95,7 +95,7 @@ curl -X POST http://localhost:5005/api/v1/mcp/context \
 To get contextual feedback using the MCP protocol:
 
 ```bash
-curl -X POST http://localhost:5005/api/v1/mcp/feedback \
+curl -X POST http://localhost:5000/api/v1/mcp/feedback \
   -H "Content-Type: application/json" \
   -d '{
     "user_id": "user123",

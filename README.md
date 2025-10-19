@@ -11,7 +11,7 @@ Speech Coach is an AI-powered platform that helps users improve their public spe
 A simplified version of the application is available that focuses on the core `/api/v1/analyze` endpoint. It maintains the MCP architecture while streamlining the implementation. To use the simplified version:
 
 1. Run `./backend/start_simplified.sh`
-2. Access the API at `http://localhost:5005/api/v1/analyze`
+2. Access the API at `http://localhost:5000/api/v1/analyze`
 
 See `backend/SIMPLIFIED_README.md` for detailed documentation on the simplified version.
 

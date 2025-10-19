@@ -25,12 +25,21 @@ export default function Header() {
             <Link href="/dashboard">
               <button className="bg-gray-100 text-black px-3 py-1 rounded font-medium hover:bg-gray-200 transition">Dashboard</button>
             </Link>
+            <Link href="/speeches">
+              <button className="bg-gray-100 text-black px-3 py-1 rounded font-medium hover:bg-gray-200 transition">Speeches</button>
+            </Link>
             <Link href="/profile">
               <button className="bg-gray-100 text-black px-3 py-1 rounded font-medium hover:bg-gray-200 transition">Profile</button>
             </Link>
-            <Link href="/auth/logout">
-              <button className="bg-black text-white px-4 py-2 rounded-md font-medium hover:bg-black/80 transition">Logout</button>
-            </Link>
+            {user ? (
+              <Link href="/auth/logout">
+                <button className="bg-black text-white px-4 py-2 rounded-md font-medium hover:bg-black/80 transition">Logout</button>
+              </Link>
+            ) : (
+              <button className="bg-black text-white px-4 py-2 rounded-md font-medium hover:bg-black/80 transition" disabled>
+                Test Mode
+              </button>
+            )}
           </div>
         ) : (
           <Link href="/auth/login">
