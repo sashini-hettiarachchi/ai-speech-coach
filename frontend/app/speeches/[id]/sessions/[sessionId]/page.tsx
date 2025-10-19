@@ -13,6 +13,55 @@ import dynamic from "next/dynamic";
 const FillerWordsChart = dynamic(() => import("../../../../../components/FillerWordsCharts"), { ssr: false });
 const DeliveryMetricsTable = dynamic(() => import("../../../../../components/DeliveryMetrics"), { ssr: false });
 
+// Dynamic imports for recharts
+const BarChart = dynamic(() => import('recharts').then(mod => mod.BarChart), { ssr: false });
+const Bar = dynamic(() => import('recharts').then(mod => mod.Bar), { ssr: false });
+const LineChart = dynamic(() => import('recharts').then(mod => mod.LineChart), { ssr: false });
+const Line = dynamic(() => import('recharts').then(mod => mod.Line), { ssr: false });
+const XAxis = dynamic(() => import('recharts').then(mod => mod.XAxis), { ssr: false });
+const YAxis = dynamic(() => import('recharts').then(mod => mod.YAxis), { ssr: false });
+const CartesianGrid = dynamic(() => import('recharts').then(mod => mod.CartesianGrid), { ssr: false });
+const Tooltip = dynamic(() => import('recharts').then(mod => mod.Tooltip), { ssr: false });
+const ResponsiveContainer = dynamic(() => import('recharts').then(mod => mod.ResponsiveContainer), { ssr: false });
+
+// Simple chart components without recharts
+const SimpleBarChart = ({ data, title }: { data: any[], title: string }) => (
+  <div className="space-y-2">
+    <h3 className="font-medium text-gray-700">{title}</h3>
+    {data.map((item, index) => (
+      <div key={index} className="flex items-center space-x-3">
+        <div className="w-20 text-sm text-gray-600 truncate">{item.criterion}</div>
+        <div className="flex-1 bg-gray-200 rounded-full h-4">
+          <div 
+            className="bg-blue-500 h-4 rounded-full" 
+            style={{ width: `${(item.score / 10) * 100}%` }}
+          ></div>
+        </div>
+        <div className="w-8 text-sm font-medium">{item.score}</div>
+      </div>
+    ))}
+  </div>
+);
+
+const SimpleLineChart = ({ data, title }: { data: any[], title: string }) => (
+  <div className="space-y-2">
+    <h3 className="font-medium text-gray-700">{title}</h3>
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+      {data.map((item, index) => (
+        <div key={index} className="p-3 bg-gray-50 rounded-lg">
+          <div className="text-sm text-gray-600">{item.name}</div>
+          <div className={`text-lg font-bold ${
+            item['Speed Multiplier'] > 1 ? 'text-red-500' : 'text-blue-500'
+          }`}>
+            {item['Speed Multiplier']?.toFixed(2)}x
+          </div>
+          <div className="text-xs text-gray-500">{item.type}</div>
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
 interface Speech {
   id: string;
   title: string;
@@ -21,16 +70,76 @@ interface Speech {
   goal: string;
 }
 
+interface PauseEvent {
+  start_time: number;
+  end_time: number;
+  duration: number;
+  pause_type: string;
+}
+
+interface PitchEvent {
+  start_time: number;
+  end_time: number;
+  pitch_type: string;
+  relative_change: number;
+  standard_deviation: number;
+}
+
+interface SpeedEvent {
+  start_time: number;
+  end_time: number;
+  speed_type: string;
+  relative_change: number;
+  standard_deviation: number;
+}
+
+interface VolumeEvent {
+  start_time: number;
+  end_time: number;
+  volume_type: string;
+  relative_change: number;
+  standard_deviation: number;
+}
+
 interface Session {
   id: string;
   title?: string;
   transcript: string;
   feedback: string;
   filler_word_count: number;
+  filler_word_percentage: number;
   media_url: string;
-  analysis_data: any;
-  scores: any;
   created_at: string;
+  duration_seconds: number;
+  words_per_minute: number;
+  syllables_per_minute: number;
+  pitch_mean: number;
+  pitch_std: number;
+  volume_mean: number;
+  volume_std: number;
+  pause_events: PauseEvent[];
+  pitch_events: PitchEvent[];
+  speed_events: SpeedEvent[];
+  volume_events: VolumeEvent[];
+  filler_word_details: {
+    fillers: Record<string, number>;
+    total_fillers: number;
+    filler_percentage: number;
+    word_count: number;
+  };
+  full_analysis_results?: {
+    feedback?: {
+      cssef_evaluation?: Record<string, any>;
+      micro_exercises?: Array<{
+        title: string;
+        description: string;
+        duration: string;
+        focus_area: string;
+      }>;
+      suggestions?: string[];
+      summary?: string;
+    };
+  };
 }
 
 export default function SessionDetailPage() {
@@ -100,29 +209,62 @@ export default function SessionDetailPage() {
     });
   };
 
-  const getFillerWordsData = () => {
-    if (!session?.analysis_data?.filler_words) return null;
-    
-    const fillerWords = session.analysis_data.filler_words;
-    const total = Object.values(fillerWords).reduce((sum: number, count: any) => sum + (count as number), 0);
-    
-    return {
-      fillers: fillerWords,
-      total
-    };
+  const formatDuration = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const getDeliveryMetrics = () => {
-    if (!session?.analysis_data) return null;
+  // Prepare data for pause events timeline
+  const getPauseTimelineData = () => {
+    if (!session?.pause_events) return [];
     
-    return {
-      duration: session.analysis_data.duration || 0,
-      mean_intensity: session.analysis_data.mean_intensity || 0,
-      mean_pitch: session.analysis_data.mean_pitch || 0,
-      pitch_variation: session.analysis_data.pitch_variation || 0,
-      word_count: session.analysis_data.word_count || 0,
-      wpm: session.analysis_data.wpm || 0
-    };
+    return session.pause_events.map((pause, index) => ({
+      name: `Pause ${index + 1}`,
+      start: pause.start_time,
+      duration: pause.duration,
+      type: pause.pause_type,
+      end: pause.end_time
+    }));
+  };
+
+  // Prepare data for speed events chart
+  const getSpeedEventsData = () => {
+    if (!session?.speed_events) return [];
+    
+    return session.speed_events.map((event, index) => ({
+      name: `${Math.round(event.start_time)}s`,
+      time: event.start_time,
+      speed: event.relative_change,
+      type: event.speed_type,
+      'Speed Multiplier': event.relative_change
+    }));
+  };
+
+  // Prepare data for pitch events chart
+  const getPitchEventsData = () => {
+    if (!session?.pitch_events) return [];
+    
+    return session.pitch_events.map((event, index) => ({
+      name: `${Math.round(event.start_time)}s`,
+      time: event.start_time,
+      change: event.relative_change,
+      type: event.pitch_type,
+      'Pitch Change': event.relative_change
+    }));
+  };
+
+  // Get CSSEF scores for display
+  const getCSSEFScores = () => {
+    if (!session?.full_analysis_results?.feedback?.cssef_evaluation) return null;
+    
+    const evaluation = session.full_analysis_results.feedback.cssef_evaluation;
+    return Object.entries(evaluation).map(([key, value]: [string, any]) => ({
+      criterion: key.replace('C', '').replace('_', ' ').replace(/\d+/, '').trim(),
+      score: value.score || 0,
+      strengths: value.strengths || [],
+      improvements: value.improvements || []
+    }));
   };
 
   if (isLoading || loading) {
@@ -141,11 +283,13 @@ export default function SessionDetailPage() {
     );
   }
 
-  const fillerWordsData = getFillerWordsData();
-  const deliveryMetrics = getDeliveryMetrics();
+  const pauseTimelineData = getPauseTimelineData();
+  const speedEventsData = getSpeedEventsData();
+  const pitchEventsData = getPitchEventsData();
+  const cssefScores = getCSSEFScores();
 
   return (
-    <div className="flex max-w-4xl mx-auto flex-col py-2 min-h-screen">
+    <div className="flex max-w-6xl mx-auto flex-col py-2 min-h-screen">
       <main className="flex flex-1 w-full flex-col px-4 mt-12 sm:mt-20">
         {/* Navigation */}
         <div className="flex items-center space-x-4 mb-6">
@@ -184,28 +328,132 @@ export default function SessionDetailPage() {
             </div>
           </div>
           
-          <div className="text-sm text-gray-500">
-            Recorded: {formatDate(session.created_at)}
-            {session.filler_word_count !== undefined && (
-              <span> • {session.filler_word_count} filler words detected</span>
-            )}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
+            <div className="text-center">
+              <div className="text-2xl font-bold text-blue-600">{formatDuration(session.duration_seconds)}</div>
+              <div className="text-sm text-gray-600">Duration</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-green-600">{Math.round(session.words_per_minute)}</div>
+              <div className="text-sm text-gray-600">Words/min</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-orange-600">{session.filler_word_count}</div>
+              <div className="text-sm text-gray-600">Filler Words</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-red-600">{session.filler_word_percentage.toFixed(1)}%</div>
+              <div className="text-sm text-gray-600">Filler Rate</div>
+            </div>
           </div>
         </div>
 
         {/* Analysis Results */}
         <div className="space-y-6">
-          {/* Scores Overview */}
-          {session.scores && (
+          {/* CSSEF Evaluation Scores */}
+          {cssefScores && (
             <div className="bg-white border border-gray-200 rounded-lg p-6">
-              <h2 className="text-xl font-bold text-gray-900 mb-4">Overall Scores</h2>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {Object.entries(session.scores).map(([metric, score]) => (
-                  <div key={metric} className="text-center">
-                    <div className="text-2xl font-bold text-blue-600">
-                      {typeof score === 'number' ? `${score}%` : String(score)}
-                    </div>
-                    <div className="text-sm text-gray-600 capitalize">
-                      {metric.replace('_', ' ')}
+              <h2 className="text-xl font-bold text-gray-900 mb-4">CSSEF Evaluation Scores</h2>
+              <div className="h-80">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={cssefScores} margin={{ top: 20, right: 30, left: 20, bottom: 80 }}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis 
+                      dataKey="criterion" 
+                      angle={-45} 
+                      textAnchor="end" 
+                      height={80}
+                      interval={0}
+                    />
+                    <YAxis domain={[0, 10]} />
+                    <Tooltip />
+                    <Bar dataKey="score" fill="#3B82F6" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
+
+          {/* Prosody Overview */}
+          <div className="bg-white border border-gray-200 rounded-lg p-6">
+            <h2 className="text-xl font-bold text-gray-900 mb-4">Prosody Overview</h2>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+              <div className="text-center">
+                <div className="text-3xl font-bold text-purple-600">{Math.round(session.pitch_mean)}</div>
+                <div className="text-sm text-gray-600">Mean Pitch (Hz)</div>
+                <div className="text-xs text-gray-500">±{Math.round(session.pitch_std)}</div>
+              </div>
+              <div className="text-center">
+                <div className="text-3xl font-bold text-indigo-600">{Math.round(session.volume_mean)}</div>
+                <div className="text-sm text-gray-600">Mean Volume (dB)</div>
+                <div className="text-xs text-gray-500">±{Math.round(session.volume_std)}</div>
+              </div>
+              <div className="text-center">
+                <div className="text-3xl font-bold text-cyan-600">{session.pause_events.length}</div>
+                <div className="text-sm text-gray-600">Pause Events</div>
+              </div>
+              <div className="text-center">
+                <div className="text-3xl font-bold text-teal-600">{session.speed_events.length}</div>
+                <div className="text-sm text-gray-600">Speed Variations</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Speed Events Chart */}
+          {speedEventsData.length > 0 && (
+            <div className="bg-white border border-gray-200 rounded-lg p-6">
+              <h2 className="text-xl font-bold text-gray-900 mb-4">Speed Variations Over Time</h2>
+              <div className="h-80">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={speedEventsData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="name" />
+                    <YAxis />
+                    <Tooltip formatter={(value: any) => [Number(value).toFixed(2), 'Speed Multiplier']} />
+                    <Line type="monotone" dataKey="Speed Multiplier" stroke="#EF4444" strokeWidth={2} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="mt-4 text-sm text-gray-600">
+                <p><strong>Note:</strong> Values above 1.0 indicate faster speech, values below 1.0 indicate slower speech relative to average.</p>
+              </div>
+            </div>
+          )}
+
+          {/* Pitch Events Chart */}
+          {pitchEventsData.length > 0 && (
+            <div className="bg-white border border-gray-200 rounded-lg p-6">
+              <h2 className="text-xl font-bold text-gray-900 mb-4">Pitch Stress Events</h2>
+              <div className="h-80">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={pitchEventsData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="name" />
+                    <YAxis />
+                    <Tooltip formatter={(value: any) => [Number(value).toFixed(2), 'Pitch Change']} />
+                    <Bar dataKey="Pitch Change" fill="#8B5CF6" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
+
+          {/* Pause Events Timeline */}
+          {pauseTimelineData.length > 0 && (
+            <div className="bg-white border border-gray-200 rounded-lg p-6">
+              <h2 className="text-xl font-bold text-gray-900 mb-4">Pause Events Timeline</h2>
+              <div className="space-y-3">
+                {session.pause_events.map((pause, index) => (
+                  <div key={index} className="flex items-center space-x-4 p-3 bg-gray-50 rounded-lg">
+                    <div className={`w-4 h-4 rounded-full ${
+                      pause.pause_type === 'long pause' ? 'bg-red-500' :
+                      pause.pause_type === 'master pause' ? 'bg-yellow-500' : 'bg-green-500'
+                    }`}></div>
+                    <div className="flex-1">
+                      <div className="font-medium capitalize">{pause.pause_type}</div>
+                      <div className="text-sm text-gray-600">
+                        {pause.start_time.toFixed(1)}s - {pause.end_time.toFixed(1)}s ({pause.duration.toFixed(1)}s)
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -213,19 +461,53 @@ export default function SessionDetailPage() {
             </div>
           )}
 
-          {/* Filler Words Chart */}
-          {fillerWordsData && fillerWordsData.total > 0 && (
+          {/* Filler Words Analysis */}
+          {session.filler_word_details && (
             <div className="bg-white border border-gray-200 rounded-lg p-6">
               <h2 className="text-xl font-bold text-gray-900 mb-4">Filler Words Analysis</h2>
-              <FillerWordsChart fillerWords={fillerWordsData} />
+              <FillerWordsChart fillerWords={{
+                fillers: session.filler_word_details.fillers,
+                total: session.filler_word_details.total_fillers
+              }} />
+              <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4">
+                {Object.entries(session.filler_word_details.fillers).map(([word, count]) => (
+                  <div key={word} className="text-center p-3 bg-gray-50 rounded-lg">
+                    <div className="text-2xl font-bold text-orange-600">{count}</div>
+                    <div className="text-sm text-gray-600">"{word}"</div>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
-          {/* Delivery Metrics */}
-          {deliveryMetrics && (
+          {/* Micro Exercises */}
+          {session.full_analysis_results?.feedback?.micro_exercises && (
             <div className="bg-white border border-gray-200 rounded-lg p-6">
-              <h2 className="text-xl font-bold text-gray-900 mb-4">Delivery Metrics</h2>
-              <DeliveryMetricsTable metrics={deliveryMetrics} />
+              <h2 className="text-xl font-bold text-gray-900 mb-4">Recommended Exercises</h2>
+              <div className="space-y-4">
+                {session.full_analysis_results.feedback.micro_exercises.map((exercise, index) => (
+                  <div key={index} className="p-4 border border-gray-200 rounded-lg">
+                    <h3 className="font-bold text-lg text-gray-900">{exercise.title}</h3>
+                    <p className="text-sm text-gray-600 mb-2">Duration: {exercise.duration} • Focus: {exercise.focus_area}</p>
+                    <p className="text-gray-700">{exercise.description}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Key Suggestions */}
+          {session.full_analysis_results?.feedback?.suggestions && (
+            <div className="bg-white border border-gray-200 rounded-lg p-6">
+              <h2 className="text-xl font-bold text-gray-900 mb-4">Key Suggestions</h2>
+              <ul className="space-y-2">
+                {session.full_analysis_results.feedback.suggestions.map((suggestion, index) => (
+                  <li key={index} className="flex items-start space-x-3">
+                    <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 flex-shrink-0"></div>
+                    <p className="text-gray-700">{suggestion}</p>
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
 
@@ -244,10 +526,12 @@ export default function SessionDetailPage() {
           {/* AI Feedback */}
           {session.feedback && (
             <div className="bg-white border border-gray-200 rounded-lg p-6">
-              <h2 className="text-xl font-bold text-gray-900 mb-4">AI Feedback & Recommendations</h2>
+              <h2 className="text-xl font-bold text-gray-900 mb-4">Detailed AI Feedback</h2>
               <div className="prose max-w-none">
                 {typeof session.feedback === 'string' ? (
-                  <ReactMarkdown>{session.feedback}</ReactMarkdown>
+                  <div className="bg-gray-50 rounded-lg p-4 text-sm overflow-x-auto whitespace-pre-wrap">
+                    {session.feedback}
+                  </div>
                 ) : (
                   <pre className="bg-gray-50 rounded-lg p-4 text-sm overflow-x-auto">
                     {JSON.stringify(session.feedback, null, 2)}
