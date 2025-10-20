@@ -106,7 +106,7 @@ export const speechApi = {
   // Get a specific speech
   getSpeech: async (speechId: string): Promise<any> => {
     const response = await authenticatedFetch(`/api/v1/speeches/${speechId}`);
-    return response.data;
+    return response.data.speech;
   },
 
   // Update a speech
@@ -143,7 +143,7 @@ export const sessionApi = {
   // Get a specific session
   getSession: async (sessionId: string): Promise<any> => {
     const response = await authenticatedFetch(`/api/v1/sessions/${sessionId}`);
-    return response.data;
+    return response.data.session;
   },
 
   // Delete a session
