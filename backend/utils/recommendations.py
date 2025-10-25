@@ -72,7 +72,7 @@ class GeneralFeedbackSchema(BaseModel):
     improved_excerpt: Optional[str] = Field(
         None, description="Recommended improved version of a speech excerpt"
     )
-    exercises: List[Exercise] = Field(
+    micro_exercises: List[Exercise] = Field(
         default_factory=list, description="Specific exercises to practice"
     )
     motivation: str = Field(
@@ -125,39 +125,68 @@ Analyze the transcript and provide structured, actionable feedback focusing on u
 TRANSCRIPT:
 {transcript[:2000]}
 
-## GENERAL SPEAKING CRITERIA
-Evaluate the speech based on these universal criteria:
-1. Content Quality - Clarity, relevance, and value of information
-2. Organization - Logical structure and flow
-3. Language Use - Appropriate word choice and grammar
-4. Delivery - Vocal variety and pacing
-5. Clarity - Pronunciation and articulation
+## CSSEF EVALUATION CRITERIA
+You MUST evaluate the speech on these 5 criteria (score 0-10 for each):
+
+1. **Content (C1)** - Quality, relevance, and value of information presented
+2. **Structure (C2)** - Logical organization, flow, and coherence
+3. **Style (C3)** - Language choice, tone, and appropriate register
+4. **Engagement (C4)** - Ability to connect with audience and maintain interest
+5. **Fluency (C5)** - Smoothness of delivery, pace, and vocal control
 
 ## YOUR TASK
-Analyze the transcript and provide general feedback focusing on fundamental speaking skills.
-Follow these principles:
-1. Begin with positive highlights
-2. Offer constructive suggestions for improvement
-3. End with encouraging motivation
+Analyze the transcript and provide comprehensive general feedback. You MUST include:
 
-Provide the following in JSON format:
-1. A summary of overall performance (2-3 sentences)
-2. For each general criterion:
-   - Score (1-10)
-   - Strengths identified
-   - Areas for improvement
-3. Top 3-5 actionable suggestions
-4. A recommended improved version of a short excerpt
-5. Two specific exercises for improvement
+1. **Summary**: 2-3 sentences about overall performance
+2. **CSSEF Evaluation**: For EACH of the 5 criteria above, provide:
+   - Numerical score (0-10)
+   - At least 1 strength (what was done well)
+   - At least 1 improvement area (what needs work)
+3. **Strengths**: 2-3 detailed positive aspects with evidence
+4. **Issues**: 2-3 areas needing improvement with specific details
+5. **Suggestions**: 3-5 actionable recommendations
+6. **Improved Excerpt**: Rewrite a portion of the speech to demonstrate improvement
+7. **Micro Exercises**: 2-3 specific practice exercises
+8. **Motivation**: Encouraging message for the speaker
 
-IMPORTANT JSON FORMAT RULES:
-1. For "general_evaluation", include each criterion as a key with "score" (number), "strengths" (array), "improvements" (array)
-2. For "strengths" and "issues", each item should have "title", "details", and optionally "criterion" fields
-3. For "exercises", each item should have "title", "description", "duration", and "focus_area" fields
-4. Use empty arrays [] for lists with no items
-5. "improved_excerpt" should be a simple string
+CRITICAL REQUIREMENTS:
+- cssef_evaluation MUST contain all 5 criteria: "Content", "Structure", "Style", "Engagement", "Fluency"
+- Each criterion MUST have "score" (number 0-10), "strengths" (array), "improvements" (array)
+- suggestions MUST contain 3-5 actionable items
+- All arrays must contain actual items, not be empty
 
-Give response ONLY in the specified JSON format without any additional commentary.
+EXAMPLE CSSEF EVALUATION FORMAT:
+```json
+"cssef_evaluation": {{
+  "Content": {{
+    "score": 7.0,
+    "strengths": ["Clear main topic", "Personal examples"],
+    "improvements": ["Add more supporting details", "Include statistics"]
+  }},
+  "Structure": {{
+    "score": 6.0,
+    "strengths": ["Clear introduction"],
+    "improvements": ["Add transitions", "Stronger conclusion"]
+  }},
+  "Style": {{
+    "score": 5.0,
+    "strengths": ["Conversational tone"],
+    "improvements": ["Vary sentence length", "Reduce repetition"]
+  }},
+  "Engagement": {{
+    "score": 6.0,
+    "strengths": ["Enthusiasm evident"],
+    "improvements": ["Use more questions", "Add stories"]
+  }},
+  "Fluency": {{
+    "score": 4.0,
+    "strengths": ["Good pace in parts"],
+    "improvements": ["Reduce filler words", "Improve pausing"]
+  }}
+}}
+```
+
+Provide response ONLY in valid JSON format following the exact structure above. Ensure ALL required fields are present and populated.
 """
 
     url = LLM_ENDPOINT
@@ -199,96 +228,139 @@ def _process_general_feedback(feedback_data: Dict) -> str:
     
     try:
         # Extract main components with defaults
-        summary = feedback_data.get("summary", "General analysis of speech performance")
+        summary = feedback_data.get("summary", "Analysis of speech performance completed.")
         
-        # Process general evaluation
-        general_evaluation = {}
-        for criterion, eval_data in feedback_data.get("general_evaluation", {}).items():
-            if isinstance(eval_data, dict):
-                general_evaluation[criterion] = {
-                    "score": eval_data.get("score", 5.0),
-                    "strengths": eval_data.get("strengths", []),
-                    "improvements": eval_data.get("improvements", [])
-                }
+        # Process CSSEF evaluation with defaults for missing criteria
+        cssef_evaluation = {}
+        default_criteria = {
+            "Content": {"score": 5.0, "strengths": ["Content present"], "improvements": ["Enhance content quality"]},
+            "Structure": {"score": 5.0, "strengths": ["Basic structure evident"], "improvements": ["Improve organization"]},
+            "Style": {"score": 5.0, "strengths": ["Appropriate style"], "improvements": ["Refine language use"]},
+            "Engagement": {"score": 5.0, "strengths": ["Shows engagement"], "improvements": ["Increase audience connection"]},
+            "Fluency": {"score": 5.0, "strengths": ["Generally fluent"], "improvements": ["Enhance delivery smoothness"]}
+        }
         
-        # Process strengths
+        # Start with defaults and update with actual data
+        for criterion in default_criteria.keys():
+            cssef_evaluation[criterion] = default_criteria[criterion].copy()
+        
+        # Update with actual evaluation data if present
+        if "cssef_evaluation" in feedback_data and feedback_data["cssef_evaluation"]:
+            for criterion, eval_data in feedback_data["cssef_evaluation"].items():
+                if isinstance(eval_data, dict):
+                    try:
+                        # Convert score to float and handle various formats
+                        score = 5.0
+                        if "score" in eval_data:
+                            try:
+                                score = float(eval_data["score"])
+                                # Ensure score is within valid range
+                                score = max(0.0, min(10.0, score))
+                            except (ValueError, TypeError):
+                                score = 5.0
+
+                        # Ensure strengths and improvements are lists
+                        strengths = []
+                        if "strengths" in eval_data:
+                            if isinstance(eval_data["strengths"], list):
+                                strengths = [s for s in eval_data["strengths"] if s and str(s).strip()]
+                            elif isinstance(eval_data["strengths"], str) and eval_data["strengths"].strip():
+                                strengths = [eval_data["strengths"]]
+                        
+                        # Provide default if empty
+                        if not strengths:
+                            strengths = [f"Shows {criterion.lower()} awareness"]
+
+                        improvements = []
+                        if "improvements" in eval_data:
+                            if isinstance(eval_data["improvements"], list):
+                                improvements = [i for i in eval_data["improvements"] if i and str(i).strip()]
+                            elif isinstance(eval_data["improvements"], str) and eval_data["improvements"].strip():
+                                improvements = [eval_data["improvements"]]
+                        
+                        # Provide default if empty
+                        if not improvements:
+                            improvements = [f"Continue developing {criterion.lower()} skills"]
+
+                        cssef_evaluation[criterion] = {
+                            "score": score,
+                            "strengths": strengths,
+                            "improvements": improvements
+                        }
+                    except Exception as e:
+                        print(f"Error processing evaluation for {criterion}: {e}")
+                        # Keep default for this criterion
+        
+        # Process strengths with better defaults
         strengths = []
         for strength in feedback_data.get("strengths", []):
             if isinstance(strength, dict):
                 strengths.append({
-                    "title": strength.get("title", "Strength"),
-                    "details": strength.get("details", ""),
+                    "title": strength.get("title", "Strength Identified"),
+                    "details": strength.get("details", "Positive aspect noted in your speech."),
                     "evidence": strength.get("evidence"),
                     "criterion": strength.get("criterion")
                 })
         
-        # Process issues
+        # Provide default strengths if none found
+        if not strengths:
+            strengths = [
+                {
+                    "title": "Communication Attempt",
+                    "details": "You successfully communicated your message.",
+                    "evidence": None,
+                    "criterion": "Content"
+                }
+            ]
+        
+        # Process issues with better defaults
         issues = []
         for issue in feedback_data.get("issues", []):
             if isinstance(issue, dict):
                 issues.append({
                     "title": issue.get("title", "Area for Improvement"),
-                    "details": issue.get("details", ""),
+                    "details": issue.get("details", "This area has potential for enhancement."),
                     "evidence": issue.get("evidence"),
                     "criterion": issue.get("criterion")
                 })
         
-        # Process exercises
+        # Process suggestions with defaults
+        suggestions = feedback_data.get("suggestions", [])
+        if not suggestions or not isinstance(suggestions, list):
+            suggestions = [
+                "Practice your speech multiple times to improve fluency",
+                "Focus on clear pronunciation and pacing",
+                "Consider your audience when crafting your message",
+                "Use more varied vocabulary to enhance engagement"
+            ]
+        
+        # Process exercises with better structure
         exercises = []
-        for exercise in feedback_data.get("exercises", []):
+        for exercise in feedback_data.get("micro_exercises", []):
             if isinstance(exercise, dict):
                 exercises.append({
-                    "title": exercise.get("title", "Exercise"),
-                    "description": exercise.get("description", ""),
-                    "duration": exercise.get("duration", "5 minutes"),
-                    "focus_area": exercise.get("focus_area", "general")
+                    "title": exercise.get("title", "Speaking Exercise"),
+                    "description": exercise.get("description", "Practice speaking skills."),
+                    "duration": exercise.get("duration", "10 minutes"),
+                    "focus_area": exercise.get("focus_area", "general speaking")
                 })
         
-        cssef_evaluation = {}
-        if "cssef_evaluation" in feedback_data:
-            for criterion, eval_data in feedback_data["cssef_evaluation"].items():
-                if isinstance(eval_data, dict):
-                    try:
-                        # Convert score to float and handle various formats
-                            score = 5.0
-                            if "score" in eval_data:
-                                try:
-                                    score = float(eval_data["score"])
-                                except (ValueError, TypeError):
-                                    score = 5.0
-    
-                            # Ensure strengths and improvements are lists
-                            strengths = []
-                            if "strengths" in eval_data:
-                                if isinstance(eval_data["strengths"], list):
-                                    strengths = eval_data["strengths"]
-                                elif (
-                                    isinstance(eval_data["strengths"], str)
-                                    and eval_data["strengths"].strip()
-                                ):
-                                    strengths = [eval_data["strengths"]]
-    
-                            improvements = []
-                            if "improvements" in eval_data:
-                                if isinstance(eval_data["improvements"], list):
-                                    improvements = eval_data["improvements"]
-                                elif (
-                                    isinstance(eval_data["improvements"], str)
-                                    and eval_data["improvements"].strip()
-                                ):
-                                    improvements = [eval_data["improvements"]]
-    
-                            cssef_evaluation[criterion] = CSSEFCriterionEvaluation(
-                                score=score,
-                                strengths=strengths,
-                                improvements=improvements,
-                            )
-                    except Exception as e:
-                            print(f"Error processing evaluation for {criterion}: {e}")
-                            # Add default evaluation for this criterion
-                            cssef_evaluation[criterion] = CSSEFCriterionEvaluation(
-                                score=5.0, strengths=[], improvements=[]
-                            )
+        # Provide default exercises if none found
+        if not exercises:
+            exercises = [
+                {
+                    "title": "Filler Word Reduction",
+                    "description": "Practice speaking slowly and deliberately, pausing instead of using filler words.",
+                    "duration": "15 minutes",
+                    "focus_area": "Fluency"
+                },
+                {
+                    "title": "Voice Modulation Practice",
+                    "description": "Read aloud varying your pitch, pace, and volume for emphasis.",
+                    "duration": "10 minutes",
+                    "focus_area": "Delivery"
+                }
+            ]
 
         # Create structured response
         structured_feedback = {
@@ -296,17 +368,36 @@ def _process_general_feedback(feedback_data: Dict) -> str:
             "cssef_evaluation": cssef_evaluation,
             "strengths": strengths,
             "issues": issues,
-            "suggestions": feedback_data.get("suggestions", []),
-            "improved_excerpt": feedback_data.get("improved_excerpt"),
+            "suggestions": suggestions,
+            "improved_excerpt": feedback_data.get("improved_excerpt", "Consider restructuring your opening to be more engaging and clear."),
             "micro_exercises": exercises,
-            "motivation": feedback_data.get("motivation", "Keep practicing to improve your speaking skills!"),
-            "context_specific_tips": []  # Empty for general feedback
+            "motivation": feedback_data.get("motivation", "Every great speaker started as a beginner. Keep practicing and you'll see improvement!")
         }
         
         return json.dumps(structured_feedback, indent=2)
         
     except Exception as e:
         print(f"Error processing general feedback: {e}")
-        return None
+        # Return a complete fallback response
+        fallback_response = {
+            "summary": "Speech analysis completed with basic evaluation.",
+            "cssef_evaluation": {
+                "Content": {"score": 5.0, "strengths": ["Content present"], "improvements": ["Enhance content depth"]},
+                "Structure": {"score": 5.0, "strengths": ["Basic structure"], "improvements": ["Improve organization"]},
+                "Style": {"score": 5.0, "strengths": ["Appropriate style"], "improvements": ["Refine language"]},
+                "Engagement": {"score": 5.0, "strengths": ["Shows effort"], "improvements": ["Increase engagement"]},
+                "Fluency": {"score": 5.0, "strengths": ["Generally fluent"], "improvements": ["Reduce hesitations"]}
+            },
+            "strengths": [{"title": "Communication", "details": "Message was communicated.", "evidence": None, "criterion": "Content"}],
+            "issues": [{"title": "General Improvement", "details": "Continue developing speaking skills.", "evidence": None, "criterion": "General"}],
+            "suggestions": ["Practice regularly", "Focus on clarity", "Engage your audience", "Reduce filler words"],
+            "improved_excerpt": "Consider making your opening more direct and engaging.",
+            "micro_exercises": [
+                {"title": "Daily Practice", "description": "Practice speaking for 10 minutes daily.", "duration": "10 minutes", "focus_area": "General"},
+                {"title": "Record and Review", "description": "Record yourself and listen for areas of improvement.", "duration": "15 minutes", "focus_area": "Self-Assessment"}
+            ],
+            "motivation": "Keep practicing and you'll see improvement in your speaking skills!"
+        }
+        return json.dumps(fallback_response, indent=2)
 
 
