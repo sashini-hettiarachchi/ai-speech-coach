@@ -97,8 +97,13 @@ def analyze_speech():
             return jsonify({"error": "Speech not found or access denied"}), 404
         
         context_label = speech.context  # Use speech's context
-        domain_id = 'public_speaking'
-        
+        # domain_id = 'public_speaking'
+        speech_title = speech.title
+        speech_goal = speech.goal
+        speech_audience_description = speech.audience_description
+        speech_key_points = speech.key_points
+        speech_self_improvement_goal = speech.self_improvement_goal
+
         print(f"🎯 Analysis request - User: {auth0_user_id}, Speech: {speech.title}, Context: {context_label}")
         
         # Save uploaded file
@@ -137,56 +142,6 @@ def analyze_speech():
         prosody_result = tools["audio_prosody"]({"file_path": filepath, "transcript": transcript})
         print("✅ Audio prosody analysis completed", prosody_result)
         
-        # # Step 3: Analyze speech structure using NLP
-        # print("🔍 Analyzing speech structure...")
-        # structure_result = tools["nlp_structure"]({"transcript": transcript})
-        # print("✅ Structure analysis completed")
-        
-        # Step 4: Analyze pronunciation
-        # print("🔊 Analyzing pronunciation...")
-        # pronunciation_result = tools["pronunciation"]({
-        #     "file_path": filepath,
-        #     "transcript": transcript
-        # })
-        # print("✅ Pronunciation analysis completed")
-        
-        # # Step 5: Analyze video (if applicable)
-        # video_result = None
-        # if is_video and "video_pose" in tools:
-        #     print("🎥 Analyzing video pose and expressions...")
-        #     video_result = tools["video_pose"]({"file_path": filepath})
-        #     print("✅ Video analysis completed")
-        
-        # Step 6: Calculate competency scores
-        # print("🏆 Calculating competency scores...")
-        # scorer_input = ScorerToolInput(
-        #     transcript=transcript,
-        #     word_count=len(transcript.split()),
-        #     words_per_minute=prosody_result.words_per_minute,
-        #     syllables_per_minute=prosody_result.syllables_per_minute,
-        #     pitch_mean=prosody_result.pitch_mean,
-        #     pitch_std=prosody_result.pitch_std,
-        #     volume_mean=prosody_result.volume_mean,
-        #     volume_std=prosody_result.volume_std,
-        #     pause_events=prosody_result.pause_events,
-        #     volume_events=prosody_result.volume_events,
-        #     pitch_events=prosody_result.pitch_events,
-        #     speed_events=prosody_result.speed_events,
-        #     # structure_quality=structure_result.structure_quality,
-        #     # readability_score=structure_result.readability_score,
-        #     # pronunciation_score=pronunciation_result.pronunciation_score,
-        #     # grammar_error_count=len(pronunciation_result.grammar_errors),
-        #     # Optional video metrics
-        #     # eye_contact_pct=video_result.eye_contact_pct if video_result else None,
-        #     # gesture_rate=video_result.gesture_rate if video_result else None,
-        #     # facial_expressiveness=video_result.facial_expressiveness if video_result else None
-        # )
-        
-        # score_result = tools["scorer"](scorer_input)
-        # print("✅ Competency scoring completed")
-        
-        # # Step 6.5: Perform detailed filler word analysis with MCP tool
-        # print("🔍 Performing detailed filler word analysis...")
         filler_result = tools["filler_detector"]({"transcript": transcript, "use_llm": True})
         filler_analysis = filler_result.dict()
         print(f"✅ Detected {filler_result.total_fillers} filler words ({filler_result.filler_percentage:.1f}%), filler_result: {filler_result}")
@@ -200,11 +155,28 @@ def analyze_speech():
             "transcript": transcript,  # Include transcript for LLM-based feedback
             "filler_analysis": filler_analysis,  # Include detailed filler analysis
             "prosody_results": prosody_result.dict(),
+            "speech_title": speech_title,
+            "speech_goal": speech_goal,
+            "speech_audience_description": speech_audience_description,
+            "speech_key_points": speech_key_points,
+            "speech_self_improvement_goal": speech_self_improvement_goal,
         }
         
         feedback_result = tools["feedback_generator"](feedback_input)
         print("✅ Feedback generation completed")
-        feedback_without_context = give_recommendations(transcript)
+        
+        # Generate general feedback without context awareness
+        feedback_without_context_raw = give_recommendations(transcript, prosody_result.dict() if prosody_result else None, filler_analysis)
+        
+        # Parse the structured feedback response
+        feedback_without_context = feedback_without_context_raw
+        try:
+            import json
+            feedback_without_context = json.loads(feedback_without_context_raw)
+        except (json.JSONDecodeError, TypeError):
+            # Keep as string if parsing fails
+            print("Warning: Could not parse feedback_without_context as JSON, storing as string")
+            feedback_without_context = feedback_without_context_raw
         
         # Save session to database
         try:
@@ -259,7 +231,7 @@ def analyze_speech():
                 "user_id": auth0_user_id,
                 "speech_id": speech.id,
                 "speech_title": speech.title,
-                "domain": domain_id,
+                # "domain": domain_id,
                 "context_label": context_label,
                 "file_name": filename
             },
@@ -423,12 +395,11 @@ def get_user_speeches():
 def create_speech():
     """Create a new speech for the authenticated user"""
     try:
-        print("hey I love this app")
         user = get_current_user()
         data = request.get_json()
         
         # Validate required fields
-        required_fields = ['title', 'context']
+        required_fields = ['title', 'goal', 'audience_description', 'context']
         for field in required_fields:
             if not data.get(field):
                 return jsonify({"error": f"Missing required field: {field}"}), 400
@@ -437,9 +408,13 @@ def create_speech():
         speech = Speech(
             user_id=user.id,
             title=data['title'],
-            description=data.get('description', ''),
+            goal=data['goal'],
+            audience_description=data['audience_description'],
+            key_points=data.get('key_points', ''),
+            self_improvement_goal=data.get('self_improvement_goal', ''),
             context=data['context'],
-            goal=data.get('goal', '')
+            # Legacy field for backward compatibility
+            description=data.get('description', data.get('goal', ''))
         )
         
         db.session.add(speech)
@@ -488,12 +463,19 @@ def update_speech(speech_id):
         # Update fields if provided
         if 'title' in data:
             speech.title = data['title']
-        if 'description' in data:
-            speech.description = data['description']
-        if 'context' in data:
-            speech.context = data['context']
         if 'goal' in data:
             speech.goal = data['goal']
+        if 'audience_description' in data:
+            speech.audience_description = data['audience_description']
+        if 'key_points' in data:
+            speech.key_points = data['key_points']
+        if 'self_improvement_goal' in data:
+            speech.self_improvement_goal = data['self_improvement_goal']
+        if 'context' in data:
+            speech.context = data['context']
+        # Legacy field for backward compatibility
+        if 'description' in data:
+            speech.description = data['description']
         
         speech.updated_at = datetime.utcnow()
         db.session.commit()

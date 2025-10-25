@@ -19,9 +19,11 @@ export default function NewSpeech() {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     title: "",
-    description: "",
-    context: "Academic",
-    goal: ""
+    goal: "",
+    audience_description: "",
+    key_points: "",
+    self_improvement_goal: "",
+    context: "Academic"
   });
 
   // Redirect to login if not authenticated
@@ -50,13 +52,13 @@ export default function NewSpeech() {
       return;
     }
 
-    if (!formData.description.trim()) {
-      toast.error("Please enter a description for your speech");
+    if (!formData.goal.trim()) {
+      toast.error("Please enter a goal/objective for your speech");
       return;
     }
 
-    if (!formData.goal.trim()) {
-      toast.error("Please enter a goal for your speech");
+    if (!formData.audience_description.trim()) {
+      toast.error("Please describe your audience");
       return;
     }
 
@@ -105,21 +107,82 @@ export default function NewSpeech() {
             />
           </div>
 
-          {/* Description Field */}
+          {/* Speech Goal/Objective Field */}
           <div className="text-left">
-            <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-2">
-              Description *
+            <label htmlFor="goal" className="block text-sm font-medium text-gray-700 mb-2">
+              Speech Goal / Objective *
             </label>
             <textarea
-              id="description"
-              name="description"
-              value={formData.description}
+              id="goal"
+              name="goal"
+              value={formData.goal}
               onChange={handleInputChange}
-              placeholder="Describe what your speech is about"
-              rows={4}
+              placeholder="What is the main goal of your speech? (e.g., to inform, to inspire, to persuade, to entertain)"
+              rows={3}
               className="w-full rounded-md border-gray-300 shadow-sm focus:border-black focus:ring-black px-3 py-2"
               required
             />
+            <p className="text-sm text-gray-500 mt-1">
+              What are you trying to achieve with this speech?
+            </p>
+          </div>
+
+          {/* Audience Description Field */}
+          <div className="text-left">
+            <label htmlFor="audience_description" className="block text-sm font-medium text-gray-700 mb-2">
+              Audience Description *
+            </label>
+            <textarea
+              id="audience_description"
+              name="audience_description"
+              value={formData.audience_description}
+              onChange={handleInputChange}
+              placeholder="Who is your audience? (e.g., classmates, executives, general public)"
+              rows={3}
+              className="w-full rounded-md border-gray-300 shadow-sm focus:border-black focus:ring-black px-3 py-2"
+              required
+            />
+            <p className="text-sm text-gray-500 mt-1">
+              Describe who you are speaking to
+            </p>
+          </div>
+
+          {/* Key Points or Outline Field */}
+          <div className="text-left">
+            <label htmlFor="key_points" className="block text-sm font-medium text-gray-700 mb-2">
+              Key Points or Outline
+            </label>
+            <textarea
+              id="key_points"
+              name="key_points"
+              value={formData.key_points}
+              onChange={handleInputChange}
+              placeholder="Main Points or Structure (optional, but helps us understand your structure)"
+              rows={4}
+              className="w-full rounded-md border-gray-300 shadow-sm focus:border-black focus:ring-black px-3 py-2"
+            />
+            <p className="text-sm text-gray-500 mt-1">
+              List 2-3 main points or sections of your speech
+            </p>
+          </div>
+
+          {/* Self-Improvement Goal Field */}
+          <div className="text-left">
+            <label htmlFor="self_improvement_goal" className="block text-sm font-medium text-gray-700 mb-2">
+              Self-Improvement Goal (Optional)
+            </label>
+            <textarea
+              id="self_improvement_goal"
+              name="self_improvement_goal"
+              value={formData.self_improvement_goal}
+              onChange={handleInputChange}
+              placeholder="What skill are you most trying to improve? (e.g., confidence, storytelling, clarity)"
+              rows={2}
+              className="w-full rounded-md border-gray-300 shadow-sm focus:border-black focus:ring-black px-3 py-2"
+            />
+            <p className="text-sm text-gray-500 mt-1">
+              Pick one or two areas you'd like to focus on improving
+            </p>
           </div>
 
           {/* Context Dropdown */}
@@ -143,26 +206,6 @@ export default function NewSpeech() {
             </select>
             <p className="text-sm text-gray-500 mt-1">
               Choose the context that best fits your speech
-            </p>
-          </div>
-
-          {/* Goal Field */}
-          <div className="text-left">
-            <label htmlFor="goal" className="block text-sm font-medium text-gray-700 mb-2">
-              Speech Goal *
-            </label>
-            <textarea
-              id="goal"
-              name="goal"
-              value={formData.goal}
-              onChange={handleInputChange}
-              placeholder="What do you want to achieve with this speech?"
-              rows={3}
-              className="w-full rounded-md border-gray-300 shadow-sm focus:border-black focus:ring-black px-3 py-2"
-              required
-            />
-            <p className="text-sm text-gray-500 mt-1">
-              Describe your objectives and what you want your audience to take away
             </p>
           </div>
           

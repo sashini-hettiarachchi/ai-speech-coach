@@ -48,9 +48,14 @@ class Speech(db.Model):
     
     # Speech Information
     title = db.Column(db.String(255), nullable=False)
-    description = db.Column(db.Text)
+    goal = db.Column(db.Text, nullable=False)  # Speech goal/objective
+    audience_description = db.Column(db.Text, nullable=False)  # Target audience description
+    key_points = db.Column(db.Text)  # Key points or outline (optional)
+    self_improvement_goal = db.Column(db.Text)  # Self-improvement goals (optional)
     context = db.Column(db.String(100), nullable=False)  # academic, persuasive, storytelling, professional
-    goal = db.Column(db.Text)  # User's improvement goals for this speech
+    
+    # Legacy fields (for backward compatibility)
+    description = db.Column(db.Text)  # Deprecated - use goal instead
     
     # Metadata
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -67,12 +72,16 @@ class Speech(db.Model):
             'id': self.id,
             'user_id': self.user_id,
             'title': self.title,
-            'description': self.description,
-            'context': self.context,
             'goal': self.goal,
+            'audience_description': self.audience_description,
+            'key_points': self.key_points,
+            'self_improvement_goal': self.self_improvement_goal,
+            'context': self.context,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
-            'session_count': len(self.sessions)
+            'session_count': len(self.sessions),
+            # Legacy field for backward compatibility
+            'description': self.description
         }
         
         if include_sessions:

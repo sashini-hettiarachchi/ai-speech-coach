@@ -92,15 +92,17 @@ export const speechApi = {
   // Create a new speech
   createSpeech: async (speechData: {
     title: string;
-    description: string;
-    context: string;
     goal: string;
+    audience_description: string;
+    key_points?: string;
+    self_improvement_goal?: string;
+    context: string;
   }): Promise<any> => {
     const response = await authenticatedFetch('/api/v1/speeches', {
       method: 'POST',
       data: speechData,
     });
-    return response.data;
+    return response.data.speech;
   },
 
   // Get a specific speech
@@ -112,9 +114,11 @@ export const speechApi = {
   // Update a speech
   updateSpeech: async (speechId: string, speechData: {
     title?: string;
-    description?: string;
-    context?: string;
     goal?: string;
+    audience_description?: string;
+    key_points?: string;
+    self_improvement_goal?: string;
+    context?: string;
   }): Promise<any> => {
     const response = await authenticatedFetch(`/api/v1/speeches/${speechId}`, {
       method: 'PUT',

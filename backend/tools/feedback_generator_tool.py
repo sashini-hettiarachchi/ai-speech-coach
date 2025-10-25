@@ -51,6 +51,17 @@ class FeedbackGeneratorToolInput(BaseModel):
     cssef_weights: Optional[Dict[str, float]] = Field(
         None, description="Weights for each CSSEF criterion based on speaking context"
     )
+    speech_title: Optional[str] = Field(None, description="Title of the speech")
+    speech_goal: Optional[str] = Field(None, description="Goal of the speech")
+    speech_audience_description: Optional[str] = Field(
+        None, description="Description of the audience for the speech"
+    )
+    speech_key_points: Optional[str] = Field(
+        None, description="Key points of the speech"
+    )
+    speech_self_improvement_goal: Optional[str] = Field(
+        None, description="Self-improvement goal for the speech"
+    )
 
 
 class FeedbackItem(BaseModel):
@@ -208,7 +219,7 @@ class FeedbackGeneratorTool(
 
     # Default context-specific CSSEF weights (fallback if JSON can't be loaded)
     DEFAULT_CONTEXT_SCORES = {
-        "Academic": {
+        "academic": {
             "C1_topic_choice": 0.15,
             "C2_purpose": 0.15,
             "C3_supporting_material": 0.15,
@@ -218,7 +229,7 @@ class FeedbackGeneratorTool(
             "C7_pronunciation_and_grammar": 0.10,
             "C8_physical_behaviors": 0.10,
         },
-        "Persuasive": {
+        "persuasive": {
             "C1_topic_choice": 0.10,
             "C2_purpose": 0.20,
             "C3_supporting_material": 0.20,
@@ -228,7 +239,7 @@ class FeedbackGeneratorTool(
             "C7_pronunciation_and_grammar": 0.10,
             "C8_physical_behaviors": 0.05,
         },
-        "Storytelling": {
+        "storytelling": {
             "C1_topic_choice": 0.10,
             "C2_purpose": 0.10,
             "C3_supporting_material": 0.20,
@@ -251,7 +262,7 @@ class FeedbackGeneratorTool(
             FeedbackGeneratorToolOutput: Structured feedback based on CSSEF evaluation
         """
         # Normalize context label
-        context = inputs.context_label.lower()
+        context = inputs.context_label.strip().lower()
 
         # Generate LLM-based feedback if transcript is available
         llm_feedback = None
@@ -314,25 +325,6 @@ class FeedbackGeneratorTool(
                             cssef_evaluation[criterion] = CSSEFCriterionEvaluation(
                                 score=5.0, strengths=[], improvements=[]
                             )
-
-            # If no CSSEF evaluation, create a basic one with default values
-            if not cssef_evaluation:
-                # Get CSSEF competencies from loaded JSON or use defaults
-                cssef_competencies = self.DEFAULT_CSSEF_CRITERIA
-                if (
-                    self.context_weights_data
-                    and "CSSEF_COMPETENCIES" in self.context_weights_data
-                ):
-                    cssef_competencies = self.context_weights_data["CSSEF_COMPETENCIES"]
-
-                for comp_id in cssef_competencies:
-                    cssef_evaluation[comp_id] = CSSEFCriterionEvaluation(
-                        score=5.0,
-                        strengths=[f"No specific strengths identified for {comp_id}"],
-                        improvements=[
-                            f"Consider working on {cssef_competencies[comp_id].lower()}"
-                        ],
-                    )
 
             # Process strengths
             strengths = []
@@ -410,50 +402,6 @@ class FeedbackGeneratorTool(
                         )
                 except Exception as e:
                     print(f"Error processing exercise: {e}")
-            # If we don't have any strengths/issues/exercises, create from CSSEF evaluation
-            if not strengths and cssef_evaluation:
-                for criterion, eval_data in cssef_evaluation.items():
-                    for strength in eval_data.strengths[
-                        :1
-                    ]:  # Take just the first strength per criterion
-                        strengths.append(
-                            FeedbackItem(
-                                title=f"Strong {criterion}",
-                                details=strength,
-                                evidence=None,
-                            )
-                        )
-
-            if not issues and cssef_evaluation:
-                for criterion, eval_data in cssef_evaluation.items():
-                    for improvement in eval_data.improvements[
-                        :1
-                    ]:  # Take just the first improvement per criterion
-                        issues.append(
-                            FeedbackItem(
-                                title=f"Improve your {criterion}",
-                                details=improvement,
-                                evidence=None,
-                            )
-                        )
-
-            if not exercises:
-                # Create basic exercises based on lowest scoring CSSEF criteria
-                sorted_criteria = sorted(
-                    cssef_evaluation.items(), key=lambda x: x[1].score
-                )
-
-                for criterion, eval_data in sorted_criteria[
-                    :2
-                ]:  # Take 2 lowest scoring criteria
-                    exercises.append(
-                        Exercise(
-                            title=f"{criterion} Improvement",
-                            description=f"Practice focusing on {criterion.lower()} elements in your speech",
-                            duration="10 minutes daily",
-                            focus_area=criterion,
-                        )
-                    )
 
             # Extract other fields with defaults if missing
             summary = llm_feedback.get(
@@ -512,14 +460,6 @@ class FeedbackGeneratorTool(
                     ):
                         context_specific_tips.append(
                             cssef_evaluation[comp_id].improvements[0]
-                        )
-
-            # If we couldn't get context-specific tips, use generic ones
-            if not context_specific_tips:
-                for criterion in cssef_evaluation:
-                    if cssef_evaluation[criterion].improvements:
-                        context_specific_tips.extend(
-                            cssef_evaluation[criterion].improvements[:1]
                         )
 
             return FeedbackGeneratorToolOutput(
@@ -589,7 +529,7 @@ PROSODY ANALYSIS:
             )
 
         # Get the appropriate weights for the given context
-        context = inputs.context_label.capitalize()
+        context = inputs.context_label
 
         # If context exists in context_scores, use those weights
         cssef_weights = {}
@@ -600,11 +540,7 @@ PROSODY ANALYSIS:
             cssef_weights = context_scores.get(
                 "Academic", {k: 0.125 for k in cssef_competencies}
             )
-
-        # Allow explicit overriding of weights if provided in input
-        if inputs.cssef_weights:
-            cssef_weights = inputs.cssef_weights
-
+        print(f"Using CSSEF weights for context '{context}': {cssef_weights}")
         # Format CSSEF weights for prompt
         cssef_weights_str = "\n".join(
             [
@@ -615,35 +551,81 @@ PROSODY ANALYSIS:
 
         # Prepare the prompt for LLM with CSSEF framework
         prompt = f"""
-You are an expert public speaking coach using the Communication and Speaking Structure Evaluation Framework (CSSEF) to provide feedback.
+You are an expert public speaking coach and evaluator specializing in AI-driven feedback. 
+You evaluate speeches according to the *Communication and Speaking Structure Evaluation Framework (CSSEF)* 
+and *Toastmasters International* feedback principles.
 
 CONTEXT: {inputs.context_label} presentation
+SPEECH TITLE: {inputs.speech_title or 'N/A'}
+SPEECH GOAL: {inputs.speech_goal or 'N/A'}
+AUDIENCE DESCRIPTION: {inputs.speech_audience_description or 'N/A'}
+KEY POINTS: {inputs.speech_key_points or 'N/A'}
+SELF-IMPROVEMENT GOAL: {inputs.speech_self_improvement_goal or 'N/A'}
 SPEECH DURATION: {int(inputs.speech_duration // 60)} minutes {int(inputs.speech_duration % 60)} seconds
 SPEAKING PACE: {inputs.words_per_minute:.1f} words per minute
 FILLER WORD PERCENTAGE: {filler_analysis.get("filler_percentage")}%
 
+## FILLER WORD ANALYSIS
 {filler_analysis}
 
+## AUDIO & PROSODY ANALYSIS
+
 {prosody_details}
+Examples of available metrics: pitch_mean, pitch_range, volume_stats, pause_events, speed_events, filler_words.
+
+Interpret these to comment on:
+- Vocal variety (C6)
+- Fluency and pacing
+- Pauses and expressiveness
+- Clarity and pronunciation
 
 TRANSCRIPT:
 {inputs.transcript[:2000]}
 
-## CSSEF COMPETENCY WEIGHTS FOR {inputs.context_label.upper()} PRESENTATION:
-{cssef_weights_str}
+## CSSEF COMPETENCY WEIGHTS (based on {inputs.context_label.upper()} context):
+Use these weights to determine emphasis when generating feedback.
+Each criterion’s importance is relative to the context type.
+{context_scores}
 
-## CSSEF FRAMEWORK COMPETENCIES:
-C1. TOPIC CHOICE: CHOOSES AND NARROWS A TOPIC APPROPRIATELY FOR THE AUDIENCE & OCCASION
-C2. PURPOSE/THESIS: COMMUNICATES THE THESIS/SPECIFIC PURPOSE IN A MANNER APPROPRIATE FOR THE AUDIENCE & OCCASION
-C3. SUPPORTING MATERIAL: PROVIDES SUPPORTING MATERIAL APPROPRIATE FOR THE AUDIENCE & OCCASION
-C4. ORGANIZATION: USES AN ORGANIZATIONAL PATTERN APPROPRIATE TO THE TOPIC, AUDIENCE, OCCASION, & PURPOSE
-C5. LANGUAGE USE: USES LANGUAGE APPROPRIATE TO THE AUDIENCE & OCCASION
-C6. VOCAL VARIETY: USES VOCAL VARIETY IN RATE, PITCH, & INTENSITY TO HEIGHTEN & MAINTAIN INTEREST
-C7. PRONUNCIATION & GRAMMAR: USES PRONUNCIATION, GRAMMAR, & ARTICULATION APPROPRIATE TO THE AUDIENCE & OCCASION
-C8. PHYSICAL BEHAVIORS: USES PHYSICAL BEHAVIORS THAT SUPPORT THE VERBAL MESSAGE
+These indicate the relative importance of each CSSEF competency for this context.
+For example:
+- Academic emphasizes clarity, evidence, and organization.
+- Persuasive emphasizes conviction, purpose, and evidence.
+- Storytelling emphasizes narrative structure, emotion, and vocal delivery.
+
+## WEIGHTED ATTENTION GUIDELINES
+Each competency weight represents how much focus to dedicate to that area.
+When providing feedback:
+- 0.20 → Write 3–4 detailed sentences with examples.
+- 0.15 → Write 2–3 medium-detail sentences.
+- 0.10 → Write 1–2 brief comments.
+- 0.05 → Mention briefly only if relevant.
+
+Feedback for high-weight competencies must include richer examples and actionable guidance.
+
+
+## CSSEF COMPETENCIES
+C1. Chooses and narrows a topic appropriately for the audience & occasion  
+C2. Communicates the thesis/specific purpose appropriately for the audience & occasion  
+C3. Provides supporting material appropriate for the audience & occasion  
+C4. Uses an organizational pattern appropriate to the topic, audience, occasion, & purpose  
+C5. Uses language appropriate to the audience & occasion  
+C6. Uses vocal variety in rate, pitch, & intensity to heighten & maintain interest  
+C7. Uses pronunciation, grammar, & articulation appropriate to the audience & occasion  
+C8. Uses physical behaviors that support the verbal message 
 
 Based on the transcript and analysis provided, evaluate the speech according to the CSSEF framework.
 Focus your feedback on the criteria with higher weights for this context.
+
+## YOUR TASK
+Analyze the transcript and metrics to generate **context-aware, evidence-based feedback** according to CSSEF.
+Focus more on competencies with **higher weights** for this context.
+
+Incorporate the speaker’s **goal**, **audience**, and **key points** into your evaluation.
+Your feedback must follow **Toastmasters principles**:
+1. Begin with positive highlights.
+2. Offer constructive suggestions for improvement.
+3. End with an encouraging motivational note.
 
 Provide the following:
 1. A summary of overall performance (2-3 sentences)
@@ -669,7 +651,7 @@ IMPORTANT JSON FORMAT RULES:
 
 Give response ONLY in the specified JSON format without any additional commentary or explanation.
 """
-
+        print("prompt", prompt)
         # Call the LLM API with structured output format using Pydantic schema
         headers = {"Content-Type": "application/json"}
         data = {
