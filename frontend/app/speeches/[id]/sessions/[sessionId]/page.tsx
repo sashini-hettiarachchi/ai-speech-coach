@@ -541,34 +541,6 @@ export default function SessionDetailPage() {
                                 </ResponsiveContainer>
                             </div>
 
-                            {/* Detailed List */}
-                            <div className="mt-6">
-                                <h3 className="text-lg font-medium text-gray-900 mb-3">Speed Event Details</h3>
-                                <div className="space-y-2">
-                                    {session.speed_events.map((speed, index) => (
-                                        <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                                            <div className="flex items-center space-x-3">
-                                                <div className={`w-3 h-3 rounded-full ${speed.speed_type === 'faster' ? 'bg-red-500' : 'bg-blue-500'
-                                                    }`}></div>
-                                                <div>
-                                                    <div className="font-medium capitalize">{speed.speed_type} Speech</div>
-                                                    <div className="text-sm text-gray-600">
-                                                        {speed.start_time.toFixed(1)}s - {speed.end_time.toFixed(1)}s
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div className="text-right">
-                                                <div className={`font-bold ${speed.speed_type === 'faster' ? 'text-red-600' : 'text-blue-600'
-                                                    }`}>
-                                                    {speed.relative_change.toFixed(2)}x
-                                                </div>
-                                                <div className="text-xs text-gray-500">multiplier</div>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-
                             <div className="mt-4 text-sm text-gray-600">
                                 <p><strong>Timeline:</strong> Shows when speed changes occur during your speech. Red = faster, Blue = slower.</p>
                                 <p><strong>Chart:</strong> Shows speed multiplier over time. Values above 1.0 = faster, below 1.0 = slower than average.</p>
@@ -657,32 +629,6 @@ export default function SessionDetailPage() {
                                         <Line type="monotone" dataKey="Duration" stroke="#06B6D4" strokeWidth={2} />
                                     </LineChart>
                                 </ResponsiveContainer>
-                            </div>
-
-                            {/* Detailed List */}
-                            <div className="mt-6">
-                                <h3 className="text-lg font-medium text-gray-900 mb-3">Pause Details</h3>
-                                <div className="space-y-2">
-                                    {session.pause_events.map((pause, index) => (
-                                        <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                                            <div className="flex items-center space-x-3">
-                                                <div className={`w-3 h-3 rounded-full ${pause.pause_type === 'long pause' ? 'bg-red-500' :
-                                                        pause.pause_type === 'master pause' ? 'bg-yellow-500' : 'bg-green-500'
-                                                    }`}></div>
-                                                <div>
-                                                    <div className="font-medium capitalize">{pause.pause_type}</div>
-                                                    <div className="text-sm text-gray-600">
-                                                        {pause.start_time.toFixed(1)}s - {pause.end_time.toFixed(1)}s
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div className="text-right">
-                                                <div className="font-bold text-gray-900">{pause.duration.toFixed(1)}s</div>
-                                                <div className="text-xs text-gray-500">duration</div>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
                             </div>
 
                             <div className="mt-4 text-sm text-gray-600">

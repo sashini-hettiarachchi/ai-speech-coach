@@ -8,6 +8,7 @@ Uses LLM to generate more personalized and context-aware feedback.
 
 import os
 import json
+import re
 import requests
 from typing import List, Dict, Any, Optional
 from pydantic import BaseModel, Field
@@ -28,8 +29,8 @@ from utils.filler_detector import count_filler_words
 class FeedbackGeneratorToolInput(BaseModel):
     """Input schema for FeedbackGeneratorTool"""
 
-    context_label: str = Field(
-        ..., description="Speaking context (Academic, Persuasive, Storytelling, etc.)"
+    context_label: Optional[str] = Field(
+        None, description="Speaking context (Academic, Persuasive, Storytelling, etc.)"
     )
 
     speech_duration: float = Field(..., description="Duration of speech in seconds")
@@ -262,14 +263,20 @@ class FeedbackGeneratorTool(
             FeedbackGeneratorToolOutput: Structured feedback based on CSSEF evaluation
         """
         # Normalize context label
-        context = inputs.context_label.strip().lower()
+        context = None
+        if inputs.context_label:
+            context = inputs.context_label.strip().lower()
 
         # Generate LLM-based feedback if transcript is available
         llm_feedback = None
         print("inputs:", inputs)
         if inputs.transcript:
-            llm_feedback = self._generate_llm_feedback(inputs)
+            if context == None:
+                llm_feedback = self._generate_general_llm_feedback(inputs)
+            else:
+                llm_feedback = self._generate_llm_feedback(inputs)
 
+        print("llm_feedback:....", llm_feedback)
         # If LLM feedback isn't available, generate a basic response
         if not llm_feedback:
             print(
@@ -433,34 +440,7 @@ class FeedbackGeneratorTool(
             )
 
             # Get context-specific tips based on the highest-weighted competencies for this context
-            context = inputs.context_label.capitalize()
-            context_weights = {}
-            if (
-                self.context_weights_data
-                and "CONTEXT_SCORES" in self.context_weights_data
-            ):
-                context_weights = self.context_weights_data["CONTEXT_SCORES"].get(
-                    context, {}
-                )
-
-            context_specific_tips = []
-
-            if context_weights:
-                # Sort competencies by their weight in this context
-                sorted_comps = sorted(
-                    context_weights.items(), key=lambda x: x[1], reverse=True
-                )
-                # Add improvement tips from the most important competencies for this context
-                for comp_id, weight in sorted_comps[
-                    :3
-                ]:  # Use the top 3 most important competencies
-                    if (
-                        comp_id in cssef_evaluation
-                        and cssef_evaluation[comp_id].improvements
-                    ):
-                        context_specific_tips.append(
-                            cssef_evaluation[comp_id].improvements[0]
-                        )
+            context_specific_tips = llm_feedback.get("context_specific_tips", [])
 
             return FeedbackGeneratorToolOutput(
                 summary=summary,
@@ -478,6 +458,205 @@ class FeedbackGeneratorTool(
             print(f"Error processing feedback: {e}")
             # Fall back to basic feedback if anything goes wrong
             # return self._generate_basic_feedback(inputs)
+
+    def _generate_general_llm_feedback(
+        self, inputs: FeedbackGeneratorToolInput
+    ) -> Dict:
+        """
+        Generate General feedback using LLM based on transcript, prosody results,
+        context, and CSSEF criteria weights.
+
+        Args:
+            inputs: FeedbackGeneratorToolInput containing transcript and analysis data
+
+        Returns:
+            Dict containing LLM-generated feedback sections based on CSSEF framework
+        """
+        if not inputs.transcript:
+            return None
+
+        # Get detailed filler analysis if not already provided
+        filler_analysis = inputs.filler_analysis
+        # if not filler_analysis and inputs.transcript:
+        # filler_analysis = self._analyze_filler_words(inputs.transcript)
+        print("Filler analysis:", filler_analysis)
+        print(
+            "Filler analysis: percentage", filler_analysis.get("filler_percentage", 0.0)
+        )
+
+        prosody_details = ""
+        if inputs.prosody_results:
+            prosody = inputs.prosody_results
+            pitch_data = prosody.get("pitch", {})
+            volume_data = prosody.get("volume", {})
+
+            prosody_details = f"""
+PROSODY ANALYSIS:
+- Pitch variation: {pitch_data.get('std', 'N/A')} Hz (std deviation)
+- Volume variation: {volume_data.get('std', 'N/A')} dB (std deviation)
+- Pauses: {prosody.get('pause_count', 'N/A')} detected pauses
+- Average pause duration: {prosody.get('average_pause_duration', 'N/A')} seconds
+"""
+
+        # Get CSSEF competencies and context weights from the loaded JSON file or use defaults
+        cssef_competencies = self.DEFAULT_CSSEF_CRITERIA
+
+        # Prepare the prompt for LLM with CSSEF framework
+        prompt = f"""
+You are an expert public speaking coach and evaluator specializing in AI-driven feedback. 
+You evaluate speeches according to the *Communication and Speaking Structure Evaluation Framework (CSSEF)* 
+and *Toastmasters International* feedback principles.
+
+
+SPEECH DURATION: {int(inputs.speech_duration // 60)} minutes {int(inputs.speech_duration % 60)} seconds
+SPEAKING PACE: {inputs.words_per_minute:.1f} words per minute
+FILLER WORD PERCENTAGE: {filler_analysis.get("filler_percentage")}%
+
+## FILLER WORD ANALYSIS
+{filler_analysis}
+
+## AUDIO & PROSODY ANALYSIS
+
+{prosody_details}
+Examples of available metrics: pitch_mean, pitch_range, volume_stats, pause_events, speed_events, filler_words.
+
+Interpret these to comment on:
+- Vocal variety (C6)
+- Fluency and pacing
+- Pauses and expressiveness
+- Clarity and pronunciation
+
+TRANSCRIPT:
+{inputs.transcript}
+
+
+Feedback for high-weight competencies must include richer examples and actionable guidance.
+
+
+## CSSEF COMPETENCIES
+C1. Chooses and narrows a topic appropriately for the audience & occasion  
+C2. Communicates the thesis/specific purpose appropriately for the audience & occasion  
+C3. Provides supporting material appropriate for the audience & occasion  
+C4. Uses an organizational pattern appropriate to the topic, audience, occasion, & purpose  
+C5. Uses language appropriate to the audience & occasion  
+C6. Uses vocal variety in rate, pitch, & intensity to heighten & maintain interest  
+C7. Uses pronunciation, grammar, & articulation appropriate to the audience & occasion  
+C8. Uses physical behaviors that support the verbal message 
+
+Based on the transcript and analysis provided, evaluate the speech according to the CSSEF framework.
+
+
+## YOUR TASK
+Analyze the transcript and metrics to generate **feedback** according to CSSEF.
+
+Your feedback must follow **Toastmasters principles**:
+1. Begin with positive highlights.
+2. Offer constructive suggestions for improvement.
+3. End with an encouraging motivational note.
+
+Provide the following:
+1. A summary of overall performance (2-3 sentences)
+2. For each CSSEF criterion:
+   - Score (1-10)
+   - Strengths identified
+   - Areas for improvement
+   - Specific examples from the transcript
+3. Top 3-5 actionable suggestions
+4. A recommended version of a short excerpt from the speech showing improvements
+5. Two specific exercises
+
+I need your response in structured JSON format with the following keys:
+"summary", "cssef_evaluation", "strengths", "issues", "suggestions", "improved_excerpt", "exercises", "motivation"
+
+IMPORTANT JSON FORMAT RULES:
+1. For "cssef_evaluation", include each criterion as a key with an object containing "score" (number), "strengths" (array of strings), "improvements" (array of strings).
+2. For "strengths" and "issues", each item should have "title", "details", and "criterion" fields.
+3. For "criterion" fields, use exactly ONE criterion ID (e.g., "C1_topic_choice").
+4. For "exercises", each item should have "title", "description", "duration", and "focus_area" fields.
+5. Use empty arrays [] for lists with no items, not empty strings.
+6. "improved_excerpt" should be a simple string, not an object.
+
+Give response ONLY in the specified JSON format without any additional commentary or explanation.
+"""
+        print("prompt", prompt)
+        # Call the LLM API with structured output format using Pydantic schema
+        headers = {"Content-Type": "application/json"}
+        data = {
+            "model": self.llm_model,
+            "prompt": prompt,
+            "temperature": self.llm_temperature,
+            "stream": False,
+            "format": LLMFeedbackSchema.model_json_schema(),
+        }
+
+        try:
+            response = requests.post(self.llm_endpoint, headers=headers, json=data)
+            response.raise_for_status()
+            result = response.json()
+            print("result:", result)
+            llm_response = result.get("response", "")
+            print("LLM raw response:", llm_response)
+
+            # Parse the LLM response using Pydantic model
+            # Handle both dictionary and string responses from Ollama
+            try:
+                if isinstance(llm_response, dict):
+                    # Response is already a dictionary - validate with Pydantic
+                    feedback_data = LLMFeedbackSchema.model_validate(llm_response)
+                    print("Successfully validated dictionary response with Pydantic")
+                elif isinstance(llm_response, str):
+                    # Response is a string - parse as JSON then validate
+                    feedback_data = LLMFeedbackSchema.model_validate_json(llm_response)
+                    print("Successfully validated string response with Pydantic")
+                else:
+                    raise ValueError(f"Unexpected response type: {type(llm_response)}")
+
+                # Convert to dictionary for further processing
+                llm_feedback = feedback_data.model_dump()
+                print("Validated LLM response:", llm_feedback)
+                return llm_feedback
+
+            except (ValueError, TypeError) as e:
+                print(f"Failed to validate LLM response: {e}")
+                # Try to extract JSON from code blocks if needed
+                if isinstance(llm_response, str):
+                    # Try to find JSON content between code blocks
+                    json_match = re.search(
+                        r"```(?:json)?(.*?)```", llm_response, re.DOTALL
+                    )
+                    if json_match:
+                        try:
+                            json_str = json_match.group(1).strip()
+                            feedback_data = LLMFeedbackSchema.model_validate_json(
+                                json_str
+                            )
+                            llm_feedback = feedback_data.model_dump()
+                            print(
+                                "Successfully validated JSON from code block with Pydantic"
+                            )
+                            return llm_feedback
+                        except Exception as e:
+                            print(f"Failed to parse JSON from code block: {e}")
+
+                # Create a basic feedback structure if all parsing attempts fail
+                print("Using fallback feedback structure")
+                return {
+                    "summary": "The speaker's presentation needs improvement in several areas.",
+                    "cssef_evaluation": {},
+                    "strengths": [],
+                    "issues": [],
+                    "suggestions": [
+                        "Practice more regularly",
+                        "Focus on clear topic definition",
+                    ],
+                    "improved_excerpt": None,
+                    "exercises": [],
+                    "motivation": "Keep practicing to improve your speaking skills!",
+                }
+
+        except (requests.RequestException, KeyError) as e:
+            print(f"Error calling LLM API: {e}")
+            return None
 
     def _generate_llm_feedback(self, inputs: FeedbackGeneratorToolInput) -> Dict:
         """
@@ -529,25 +708,16 @@ PROSODY ANALYSIS:
             )
 
         # Get the appropriate weights for the given context
-        context = inputs.context_label
+        context = inputs.context_label.lower() if inputs.context_label else None
 
         # If context exists in context_scores, use those weights
         cssef_weights = {}
-        if context in context_scores:
+        if context and context in context_scores:
+            print("context:", context)
             cssef_weights = context_scores[context]
-        # Otherwise use the default weights for "Academic" or fall back to equal weights
-        else:
-            cssef_weights = context_scores.get(
-                "Academic", {k: 0.125 for k in cssef_competencies}
-            )
+            print("weights", cssef_weights)
+
         print(f"Using CSSEF weights for context '{context}': {cssef_weights}")
-        # Format CSSEF weights for prompt
-        cssef_weights_str = "\n".join(
-            [
-                f"- {comp} ({cssef_competencies.get(comp, comp)[:40]}...): {weight:.2f}"
-                for comp, weight in cssef_weights.items()
-            ]
-        )
 
         # Prepare the prompt for LLM with CSSEF framework
         prompt = f"""
@@ -580,12 +750,12 @@ Interpret these to comment on:
 - Clarity and pronunciation
 
 TRANSCRIPT:
-{inputs.transcript[:2000]}
+{inputs.transcript}
 
 ## CSSEF COMPETENCY WEIGHTS (based on {inputs.context_label.upper()} context):
 Use these weights to determine emphasis when generating feedback.
 Each criterion’s importance is relative to the context type.
-{context_scores}
+{cssef_weights}
 
 These indicate the relative importance of each CSSEF competency for this context.
 For example:
@@ -637,6 +807,7 @@ Provide the following:
 3. Top 3-5 actionable suggestions prioritized based on CSSEF weights
 4. A recommended version of a short excerpt from the speech showing improvements
 5. Two specific exercises tailored to the highest priority improvement areas
+6. Give context specific tips
 
 I need your response in structured JSON format with the following keys:
 "summary", "cssef_evaluation", "strengths", "issues", "suggestions", "improved_excerpt", "exercises", "motivation"
@@ -648,6 +819,7 @@ IMPORTANT JSON FORMAT RULES:
 4. For "exercises", each item should have "title", "description", "duration", and "focus_area" fields.
 5. Use empty arrays [] for lists with no items, not empty strings.
 6. "improved_excerpt" should be a simple string, not an object.
+7. "context_specific_tips" should list tips derived from the highest-weighted competencies for this context.
 
 Give response ONLY in the specified JSON format without any additional commentary or explanation.
 """
@@ -666,7 +838,6 @@ Give response ONLY in the specified JSON format without any additional commentar
             response = requests.post(self.llm_endpoint, headers=headers, json=data)
             response.raise_for_status()
             result = response.json()
-            print("result:", result)
             llm_response = result.get("response", "")
             print("LLM raw response:", llm_response)
 
