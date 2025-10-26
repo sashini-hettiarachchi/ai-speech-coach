@@ -498,9 +498,6 @@ PROSODY ANALYSIS:
 - Average pause duration: {prosody.get('average_pause_duration', 'N/A')} seconds
 """
 
-        # Get CSSEF competencies and context weights from the loaded JSON file or use defaults
-        cssef_competencies = self.DEFAULT_CSSEF_CRITERIA
-
         # Prepare the prompt for LLM with CSSEF framework
         prompt = f"""
 You are an expert public speaking coach and evaluator specializing in AI-driven feedback. 
@@ -721,60 +718,82 @@ PROSODY ANALYSIS:
 
         # Prepare the prompt for LLM with CSSEF framework
         prompt = f"""
-You are an expert public speaking coach and evaluator specializing in AI-driven feedback. 
-You evaluate speeches according to the *Communication and Speaking Structure Evaluation Framework (CSSEF)* 
-and *Toastmasters International* feedback principles.
+You are an expert public speaking coach and evaluator specializing in AI-driven feedback.  
+You evaluate speeches using the **Communication and Speaking Structure Evaluation Framework (CSSEF)**  
+and **Toastmasters International** feedback principles.
 
-CONTEXT: {inputs.context_label} presentation
-SPEECH TITLE: {inputs.speech_title or 'N/A'}
-SPEECH GOAL: {inputs.speech_goal or 'N/A'}
-AUDIENCE DESCRIPTION: {inputs.speech_audience_description or 'N/A'}
-KEY POINTS: {inputs.speech_key_points or 'N/A'}
-SELF-IMPROVEMENT GOAL: {inputs.speech_self_improvement_goal or 'N/A'}
-SPEECH DURATION: {int(inputs.speech_duration // 60)} minutes {int(inputs.speech_duration % 60)} seconds
-SPEAKING PACE: {inputs.words_per_minute:.1f} words per minute
-FILLER WORD PERCENTAGE: {filler_analysis.get("filler_percentage")}%
+---
 
-## FILLER WORD ANALYSIS
-{filler_analysis}
+## 🎯 SPEECH CONTEXT INFORMATION
 
-## AUDIO & PROSODY ANALYSIS
+- CONTEXT TYPE: {inputs.context_label} presentation  
+- SPEECH TITLE: {inputs.speech_title or 'N/A'}  
+- SPEECH GOAL: {inputs.speech_goal or 'N/A'}  
+- AUDIENCE DESCRIPTION: {inputs.speech_audience_description or 'N/A'}  
+- KEY POINTS: {inputs.speech_key_points or 'N/A'}  
+- SELF-IMPROVEMENT GOAL: {inputs.speech_self_improvement_goal or 'N/A'}  
 
-{prosody_details}
-Examples of available metrics: pitch_mean, pitch_range, volume_stats, pause_events, speed_events, filler_words.
+Use this contextual information to understand **what success means** for this specific speech.
 
-Interpret these to comment on:
-- Vocal variety (C6)
-- Fluency and pacing
-- Pauses and expressiveness
-- Clarity and pronunciation
+When generating feedback:
+- Always relate comments to the **title**, **goal**, **audience**, and **key points**.  
+  Example: If the goal is “to inspire,” your feedback on purpose or delivery should discuss emotional connection.  
+- Adjust tone and examples to fit the **audience type** (e.g., casual, academic, professional).  
+- Connect all compliments, issues, and improvement areas to how well the speech achieved its stated goal.  
 
-TRANSCRIPT:
-{inputs.transcript}
+---
 
-## CSSEF COMPETENCY WEIGHTS (based on {inputs.context_label.upper()} context):
-Use these weights to determine emphasis when generating feedback.
-Each criterion’s importance is relative to the context type.
+## 🧭 CSSEF COMPETENCY WEIGHTS (based on {inputs.context_label.upper()} context)
+Use these weights to prioritize the **depth and emphasis** of your evaluation.  
+
 {cssef_weights}
 
-These indicate the relative importance of each CSSEF competency for this context.
+Weight guide:
+- ≥0.20 → provide detailed, example-rich comments (3–4 sentences).  
+- 0.15–0.19 → medium-depth comments (2–3 sentences).  
+- ≤0.10 → brief mention or summary if relevant.
+
+These weights define *which competencies matter most* for this context.  
 For example:
-- Academic emphasizes clarity, evidence, and organization.
-- Persuasive emphasizes conviction, purpose, and evidence.
-- Storytelling emphasizes narrative structure, emotion, and vocal delivery.
+- Academic → clarity, evidence, structure.  
+- Persuasive → conviction, purpose, logical appeal.  
+- Storytelling → emotional flow, language, vocal delivery.
 
-## WEIGHTED ATTENTION GUIDELINES
-Each competency weight represents how much focus to dedicate to that area.
-When providing feedback:
-- 0.20 → Write 3–4 detailed sentences with examples.
-- 0.15 → Write 2–3 medium-detail sentences.
-- 0.10 → Write 1–2 brief comments.
-- 0.05 → Mention briefly only if relevant.
+---
 
-Feedback for high-weight competencies must include richer examples and actionable guidance.
+## 🔊 AUDIO & PROSODY ANALYSIS
+Speech Duration: {int(inputs.speech_duration // 60)} min {int(inputs.speech_duration % 60)} sec  
+Speaking Pace: {inputs.words_per_minute:.1f} words per minute  
+Filler Word %: {filler_analysis.get("filler_percentage")}%  
 
+### Filler Word Analysis
+{filler_analysis}
 
-## CSSEF COMPETENCIES
+### Prosody Analysis
+{prosody_details}
+
+Interpret these values to comment on:
+- **C6: Vocal Variety** — pitch, pace, and expressiveness.  
+- **C7: Pronunciation & Grammar** — fluency, clarity, filler control.  
+- **C4: Organization** — use of pauses or pacing to separate ideas.
+
+Highlight where (in transcript time or phrasing) improvements could occur.
+
+---
+
+## 🧩 TRANSCRIPT
+{inputs.transcript}
+
+Use the transcript to:
+- Identify story structure (opening, conflict, resolution, takeaway).  
+- Compare to **key points** and evaluate alignment with the **stated goal**.  
+- Locate disjointed transitions or unclear segments and suggest improvements.  
+- Use prosody or pause timing to reference *when* improvements apply (e.g., “after the phrase ‘I love my cat…’ pause for emotional effect”).
+
+---
+
+## 🧩 CSSEF COMPETENCIES
+
 C1. Chooses and narrows a topic appropriately for the audience & occasion  
 C2. Communicates the thesis/specific purpose appropriately for the audience & occasion  
 C3. Provides supporting material appropriate for the audience & occasion  
@@ -782,46 +801,66 @@ C4. Uses an organizational pattern appropriate to the topic, audience, occasion,
 C5. Uses language appropriate to the audience & occasion  
 C6. Uses vocal variety in rate, pitch, & intensity to heighten & maintain interest  
 C7. Uses pronunciation, grammar, & articulation appropriate to the audience & occasion  
-C8. Uses physical behaviors that support the verbal message 
+C8. Uses physical behaviors that support the verbal message  
 
-Based on the transcript and analysis provided, evaluate the speech according to the CSSEF framework.
-Focus your feedback on the criteria with higher weights for this context.
+---
 
-## YOUR TASK
-Analyze the transcript and metrics to generate **context-aware, evidence-based feedback** according to CSSEF.
-Focus more on competencies with **higher weights** for this context.
+## 🧭 ANALYSIS STRATEGY
 
-Incorporate the speaker’s **goal**, **audience**, and **key points** into your evaluation.
-Your feedback must follow **Toastmasters principles**:
-1. Begin with positive highlights.
-2. Offer constructive suggestions for improvement.
-3. End with an encouraging motivational note.
+1. Evaluate how well the **speech achieves its goal** for the **intended audience**.  
+2. Cross-reference **transcript structure** with the **key points** provided by the speaker.  
+3. Use **prosody & filler data** to identify where delivery aids or distracts from the message.  
+4. Apply **context-specific weights** to guide how much depth you devote to each competency.  
+5. Tailor **feedback tone and content** to the speech’s **title**, **goal**, and **audience** — make it sound personally relevant.  
+6. Follow the **Toastmasters evaluation model**:  
+   - Start with positive highlights.  
+   - Offer detailed, actionable improvement points.  
+   - End with an encouraging, motivational summary aligned with the speaker’s goal.
 
-Provide the following:
-1. A summary of overall performance (2-3 sentences)
-2. For each CSSEF criterion:
-   - Score (1-10)
-   - Strengths identified
-   - Areas for improvement
-   - Specific examples from the transcript
-3. Top 3-5 actionable suggestions prioritized based on CSSEF weights
-4. A recommended version of a short excerpt from the speech showing improvements
-5. Two specific exercises tailored to the highest priority improvement areas
-6. Give context specific tips
+---
 
-I need your response in structured JSON format with the following keys:
-"summary", "cssef_evaluation", "strengths", "issues", "suggestions", "improved_excerpt", "exercises", "motivation"
+## 🧱 REQUIRED JSON OUTPUT FORMAT
+Respond **only** in valid JSON. No extra text, markdown, or commentary.
 
-IMPORTANT JSON FORMAT RULES:
-1. For "cssef_evaluation", include each criterion as a key with an object containing "score" (number), "strengths" (array of strings), "improvements" (array of strings).
-2. For "strengths" and "issues", each item should have "title", "details", and "criterion" fields.
-3. For "criterion" fields, use exactly ONE criterion ID (e.g., "C1_topic_choice").
-4. For "exercises", each item should have "title", "description", "duration", and "focus_area" fields.
-5. Use empty arrays [] for lists with no items, not empty strings.
-6. "improved_excerpt" should be a simple string, not an object.
-7. "context_specific_tips" should list tips derived from the highest-weighted competencies for this context.
+{{
+  "summary": "2–3 sentence overall summary of the speech performance, clearly tied to the speech goal, title, and audience.",
+  "cssef_evaluation": {{
+    "C1_topic_choice": {{ "score": 1–10, "strengths": [], "improvements": [] }},
+    "C2_purpose": {{ "score": 1–10, "strengths": [], "improvements": [] }},
+    "C3_supporting_material": {{ "score": 1–10, "strengths": [], "improvements": [] }},
+    "C4_organization": {{ "score": 1–10, "strengths": [], "improvements": [] }},
+    "C5_language_use": {{ "score": 1–10, "strengths": [], "improvements": [] }},
+    "C6_vocal_variety": {{ "score": 1–10, "strengths": [], "improvements": [] }},
+    "C7_pronunciation_and_grammar": {{ "score": 1–10, "strengths": [], "improvements": [] }},
+    "C8_physical_behaviors": {{ "score": 1–10, "strengths": [], "improvements": [] }}
+  }},
+  "strengths": [
+    {{ "title": "Descriptive storytelling", "details": "Strong emotional connection aligned with goal ‘to inspire.’", "criterion": "C5_language_use" }}
+  ],
+  "issues": [
+    {{ "title": "Unclear message transition", "details": "Between key points 1 and 2, connection to goal ‘to inspire joy’ could be clearer.", "criterion": "C4_organization" }}
+  ],
+  "suggestions": [
+    "Add a reflective transition after describing your cat’s playfulness to link it back to your goal of finding joy in small moments."
+  ],
+  "improved_excerpt": "Example revised version of a key excerpt aligned with goal and audience.",
+  "exercises": [
+    {{ "title": "Pause & Emphasis Drill", "description": "Practice inserting 1-second pauses after emotional sentences to enhance impact.", "duration": "10 minutes", "focus_area": "C6_vocal_variety" }}
+  ],
+  "context_specific_tips": [
+    "In storytelling, connect your personal experience directly to a universal lesson to engage listeners emotionally."
+  ],
+  "motivation": "Encouraging message tied to the speaker’s goal and title, e.g., 'Your story about your cat beautifully captures joy — keep refining your pacing to make it shine.'"
+}}
 
-Give response ONLY in the specified JSON format without any additional commentary or explanation.
+---
+
+## ⚙️ EVALUATION RULES
+- **Tailor all feedback components** — summary, strengths, issues, suggestions, tips, and motivation — using the **speech title**, **goal**, **audience**, and **key points**.
+- Always connect improvements to *where and how* they occur in the **transcript**.  
+- Use **prosody data** to reinforce feedback on pacing, emotion, or clarity.
+- Maintain a **constructive, positive coaching tone**.
+
 """
         print("prompt", prompt)
         # Call the LLM API with structured output format using Pydantic schema
