@@ -24,43 +24,6 @@ const CartesianGrid = dynamic(() => import('recharts').then(mod => mod.Cartesian
 const Tooltip = dynamic(() => import('recharts').then(mod => mod.Tooltip), { ssr: false });
 const ResponsiveContainer = dynamic(() => import('recharts').then(mod => mod.ResponsiveContainer), { ssr: false });
 
-// Simple chart components without recharts
-const SimpleBarChart = ({ data, title }: { data: any[], title: string }) => (
-    <div className="space-y-2">
-        <h3 className="font-medium text-gray-700">{title}</h3>
-        {data.map((item, index) => (
-            <div key={index} className="flex items-center space-x-3">
-                <div className="w-20 text-sm text-gray-600 truncate">{item.criterion}</div>
-                <div className="flex-1 bg-gray-200 rounded-full h-4">
-                    <div
-                        className="bg-blue-500 h-4 rounded-full"
-                        style={{ width: `${(item.score / 10) * 100}%` }}
-                    ></div>
-                </div>
-                <div className="w-8 text-sm font-medium">{item.score}</div>
-            </div>
-        ))}
-    </div>
-);
-
-const SimpleLineChart = ({ data, title }: { data: any[], title: string }) => (
-    <div className="space-y-2">
-        <h3 className="font-medium text-gray-700">{title}</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {data.map((item, index) => (
-                <div key={index} className="p-3 bg-gray-50 rounded-lg">
-                    <div className="text-sm text-gray-600">{item.name}</div>
-                    <div className={`text-lg font-bold ${item['Speed Multiplier'] > 1 ? 'text-red-500' : 'text-blue-500'
-                        }`}>
-                        {item['Speed Multiplier']?.toFixed(2)}x
-                    </div>
-                    <div className="text-xs text-gray-500">{item.type}</div>
-                </div>
-            ))}
-        </div>
-    </div>
-);
-
 interface Speech {
     id: string;
     title: string;
