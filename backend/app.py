@@ -10,7 +10,7 @@ from typing import Dict, Any, Optional
 from utils.recommendations import give_recommendations
 
 # Import database models
-from models import db, User, Speech, Session
+from models import db, User, Speech, Session, UserSelfRating
 
 # Import authentication utilities
 from auth0_utils import auth0_required, get_current_user, get_auth0_user_id, AuthError, handle_auth_error
@@ -570,13 +570,156 @@ def get_session(session_id):
         if not session:
             return jsonify({"error": "Session not found"}), 404
         
+        # Get session data with full analysis
+        session_data = session.to_dict(include_full_analysis=True)
+        
+        # Add user self-rating data
+        self_rating = UserSelfRating.query.filter_by(session_id=session_id).first()
+        if self_rating:
+            session_data['user_self_rating'] = self_rating.to_dict()
+        else:
+            session_data['user_self_rating'] = None
+
         return jsonify({
             "status": "success",
-            "session": session.to_dict(include_full_analysis=True)
+            "session": session_data
         })
         
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/v1/sessions/<int:session_id>/self-rating', methods=['GET'])
+@auth0_required
+def get_session_self_rating(session_id):
+    """Get user self-rating for a specific session"""
+    try:
+        user = get_current_user()
+        session = Session.query.join(Speech).filter(
+            Session.id == session_id,
+            Speech.user_id == user.id
+        ).first()
+        
+        if not session:
+            return jsonify({"error": "Session not found"}), 404
+        
+        # Get the self-rating
+        self_rating = UserSelfRating.query.filter_by(session_id=session_id).first()
+        
+        if not self_rating:
+            return jsonify({
+                "status": "success",
+                "self_rating": None,
+                "message": "No self-rating found for this session"
+            })
+        
+        return jsonify({
+            "status": "success",
+            "self_rating": self_rating.to_dict()
+        })
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/v1/sessions/<int:session_id>/self-rating', methods=['POST', 'PUT'])
+@auth0_required
+def create_or_update_session_self_rating(session_id):
+    """Create or update user self-rating for a specific session"""
+    try:
+        user = get_current_user()
+        session = Session.query.join(Speech).filter(
+            Session.id == session_id,
+            Speech.user_id == user.id
+        ).first()
+        
+        if not session:
+            return jsonify({"error": "Session not found"}), 404
+        
+        # Get the request data
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "No data provided"}), 400
+        
+        # Validate rating scores are between 1-10
+        if 'ratings' in data:
+            print(f"🔍 Processing ratings data: {data['ratings']}")
+            for criterion, rating_data in data['ratings'].items():
+                if 'score' in rating_data and rating_data['score'] is not None:
+                    score = rating_data['score']
+                    print(f"   {criterion}: score={score} (type: {type(score)})")
+                    if not isinstance(score, int) or score < 1 or score > 10:
+                        return jsonify({
+                            "error": f"Score for {criterion} must be an integer between 1 and 10"
+                        }), 400
+                else:
+                    print(f"   {criterion}: score=None (not rated)")
+        
+        # Validate confidence level
+        if 'confidence_level' in data and data['confidence_level'] is not None:
+            if not isinstance(data['confidence_level'], int) or data['confidence_level'] < 1 or data['confidence_level'] > 5:
+                return jsonify({
+                    "error": "Confidence level must be an integer between 1 and 5"
+                }), 400
+        
+        # Check if self-rating already exists
+        self_rating = UserSelfRating.query.filter_by(session_id=session_id).first()
+        
+        if self_rating:
+            # Update existing self-rating
+            self_rating.from_dict(data)
+            self_rating.updated_at = datetime.utcnow()
+        else:
+            # Create new self-rating
+            self_rating = UserSelfRating(session_id=session_id)
+            self_rating.from_dict(data)
+            db.session.add(self_rating)
+        
+        db.session.commit()
+        
+        return jsonify({
+            "status": "success",
+            "self_rating": self_rating.to_dict(),
+            "message": "Self-rating saved successfully"
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/v1/sessions/<int:session_id>/self-rating', methods=['DELETE'])
+@auth0_required
+def delete_session_self_rating(session_id):
+    """Delete user self-rating for a specific session"""
+    try:
+        user = get_current_user()
+        session = Session.query.join(Speech).filter(
+            Session.id == session_id,
+            Speech.user_id == user.id
+        ).first()
+        
+        if not session:
+            return jsonify({"error": "Session not found"}), 404
+        
+        # Get the self-rating
+        self_rating = UserSelfRating.query.filter_by(session_id=session_id).first()
+        
+        if not self_rating:
+            return jsonify({"error": "Self-rating not found"}), 404
+        
+        db.session.delete(self_rating)
+        db.session.commit()
+        
+        return jsonify({
+            "status": "success",
+            "message": "Self-rating deleted successfully"
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
+
 
 @app.route('/api/v1/sessions/<int:session_id>/fix-blob-name', methods=['POST'])
 @auth0_required
@@ -779,6 +922,10 @@ if __name__ == '__main__':
     print("   • GET  /api/v1/speeches/{id}/sessions - List speech sessions")
     print("   • GET  /api/v1/sessions/{id} - Get session details")
     print("   • DELETE /api/v1/sessions/{id} - Delete session")
+    print("   • GET  /api/v1/sessions/{id}/self-rating - Get user self-rating")
+    print("   • POST /api/v1/sessions/{id}/self-rating - Create user self-rating")
+    print("   • PUT  /api/v1/sessions/{id}/self-rating - Update user self-rating")
+    print("   • DELETE /api/v1/sessions/{id}/self-rating - Delete user self-rating")
     print("   • POST /api/v1/sessions/{id}/refresh-media-url - Refresh expired media URL")
     print("   • POST /api/v1/sessions/{id}/fix-blob-name - Fix missing GCS blob name")
     print(f"📂 Upload folder: {UPLOAD_FOLDER}")

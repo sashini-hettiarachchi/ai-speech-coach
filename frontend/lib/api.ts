@@ -191,6 +191,38 @@ export const sessionApi = {
     });
     return response.data;
   },
+
+  // Get user self-rating for a session
+  getSelfRating: async (sessionId: string): Promise<any> => {
+    const response = await authenticatedFetch(`/api/v1/sessions/${sessionId}/self-rating`);
+    return response.data;
+  },
+
+  // Save or update user self-rating for a session
+  saveSelfRating: async (sessionId: string, ratingData: any): Promise<any> => {
+    const response = await authenticatedFetch(`/api/v1/sessions/${sessionId}/self-rating`, {
+      method: 'POST',
+      data: ratingData,
+    });
+    return response.data;
+  },
+
+  // Update user self-rating for a session
+  updateSelfRating: async (sessionId: string, ratingData: any): Promise<any> => {
+    const response = await authenticatedFetch(`/api/v1/sessions/${sessionId}/self-rating`, {
+      method: 'PUT',
+      data: ratingData,
+    });
+    return response.data;
+  },
+
+  // Delete user self-rating for a session
+  deleteSelfRating: async (sessionId: string): Promise<any> => {
+    const response = await authenticatedFetch(`/api/v1/sessions/${sessionId}/self-rating`, {
+      method: 'DELETE',
+    });
+    return response.data;
+  },
 };
 
 export default { speechApi, sessionApi };

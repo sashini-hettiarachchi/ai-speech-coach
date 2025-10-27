@@ -157,6 +157,7 @@ export default function SessionDetailPage() {
     const [speech, setSpeech] = useState<Speech | null>(null);
     const [session, setSession] = useState<Session | null>(null);
     const [loading, setLoading] = useState(true);
+    const [userSelfRating, setUserSelfRating] = useState<any>(null);
 
     // Handle media URL refresh
     const handleMediaUrlRefresh = (newUrl: string) => {
@@ -180,24 +181,36 @@ export default function SessionDetailPage() {
     const loadData = async () => {
         try {
             setLoading(true);
-            const [speechData, sessionData] = await Promise.all([
-                speechApi.getSpeech(speechId),
-                sessionApi.getSession(sessionId)
-            ]);
-            console.log("session data", sessionData)
-            console.log("speech data", speechData)
-            setSpeech(speechData);
+            
+            // Load session data
+            const sessionData = await sessionApi.getSession(sessionId);
             setSession(sessionData);
+            
+            // Load speech data
+            const speechData = await speechApi.getSpeech(params.id as string);
+            setSpeech(speechData);
+            
+            // Load user self-rating if it exists
+            if (sessionData?.user_self_rating) {
+                setUserSelfRating(sessionData.user_self_rating);
+            } else {
+                // Try to fetch self-rating separately
+                try {
+                    const selfRatingData = await sessionApi.getSelfRating(sessionId);
+                    setUserSelfRating(selfRatingData?.self_rating);
+                } catch (error) {
+                    // Self-rating doesn't exist, that's okay
+                    setUserSelfRating(null);
+                }
+            }
+            
         } catch (error) {
-            console.error("Error loading data:", error);
+            console.error("Error loading session data:", error);
             toast.error("Failed to load session data");
-            router.push(`/speeches/${speechId}`);
         } finally {
             setLoading(false);
         }
-    };
-
-    const handleDeleteSession = async () => {
+    };    const handleDeleteSession = async () => {
         if (!confirm("Are you sure you want to delete this session? This action cannot be undone.")) {
             return;
         }
@@ -622,97 +635,176 @@ export default function SessionDetailPage() {
                     <p className="text-gray-600 text-sm mt-2">Comprehensive feedback comparison for research study effectiveness</p>
                 </div>
 
-  {/* CSSEF Evaluation Scores */}
-                    {/* {cssefScores && (
-                        <div className="bg-white border border-gray-200 rounded-lg p-6 mb-6">
-                            <h2 className="text-xl font-bold text-gray-900 mb-4">CSSEF Evaluation Scores</h2>
-                            <div className="h-80">
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <BarChart data={cssefScores} margin={{ top: 20, right: 30, left: 20, bottom: 80 }}>
-                                        <CartesianGrid strokeDasharray="3 3" />
-                                        <XAxis
-                                            dataKey="criterion"
-                                            angle={-45}
-                                            textAnchor="end"
-                                            height={80}
-                                            interval={0}
-                                        />
-                                        <YAxis domain={[0, 10]} />
-                                        <Tooltip
-                                            content={({ active, payload, label }) => {
-                                                if (active && payload && payload.length) {
-                                                    const data = payload[0].payload;
-                                                    return (
-                                                        <div className="bg-white border border-gray-300 rounded-lg p-4 shadow-xl max-w-sm">
-                                                            <p className="font-bold text-gray-900 text-base mb-2">{label}</p>
-                                                            <div className="flex items-center mb-3">
-                                                                <span className="text-blue-600 font-bold text-lg">Score: {data.score}/10</span>
-                                                                <div className={`ml-2 px-2 py-1 rounded-full text-xs font-medium ${
-                                                                    data.score >= 8 ? 'bg-green-100 text-green-800' :
-                                                                    data.score >= 6 ? 'bg-yellow-100 text-yellow-800' :
-                                                                    data.score >= 4 ? 'bg-orange-100 text-orange-800' :
-                                                                    'bg-red-100 text-red-800'
-                                                                }`}>
-                                                                    {data.score >= 8 ? 'Excellent' :
-                                                                     data.score >= 6 ? 'Good' :
-                                                                     data.score >= 4 ? 'Needs Work' : 'Poor'}
-                                                                </div>
-                                                            </div>
-                                                            
-                                                            {data.improvements && data.improvements.length > 0 ? (
-                                                                <div className="mt-3">
-                                                                    <p className="text-sm font-semibold text-red-700 mb-2 flex items-center">
-                                                                        <span className="w-4 h-4 bg-red-500 text-white rounded-full flex items-center justify-center text-xs mr-2">!</span>
-                                                                        Areas for Improvement:
-                                                                    </p>
-                                                                    <ul className="text-xs text-gray-700 space-y-2">
-                                                                        {data.improvements.map((improvement: string, index: number) => (
-                                                                            <li key={index} className="flex items-start space-x-2 bg-red-50 p-2 rounded">
-                                                                                <span className="text-red-500 font-bold mt-0.5">•</span>
-                                                                                <span className="leading-relaxed">{improvement}</span>
-                                                                            </li>
-                                                                        ))}
-                                                                    </ul>
-                                                                </div>
-                                                            ) : (
-                                                                <div className="mt-3">
-                                                                    <p className="text-sm font-semibold text-green-700 flex items-center">
-                                                                        <span className="w-4 h-4 bg-green-500 text-white rounded-full flex items-center justify-center text-xs mr-2">✓</span>
-                                                                        No specific improvements needed
-                                                                    </p>
-                                                                </div>
-                                                            )}
 
-                                                            {data.strengths && data.strengths.length > 0 && data.strengths[0] !== 'none' && (
-                                                                <div className="mt-3">
-                                                                    <p className="text-sm font-semibold text-green-700 mb-2 flex items-center">
-                                                                        <span className="w-4 h-4 bg-green-500 text-white rounded-full flex items-center justify-center text-xs mr-2">+</span>
-                                                                        Strengths:
-                                                                    </p>
-                                                                    <ul className="text-xs text-gray-700 space-y-1">
-                                                                        {data.strengths.map((strength: string, index: number) => (
-                                                                            <li key={index} className="flex items-start space-x-2 bg-green-50 p-2 rounded">
-                                                                                <span className="text-green-500 font-bold mt-0.5">•</span>
-                                                                                <span className="leading-relaxed">{strength}</span>
-                                                                            </li>
-                                                                        ))}
-                                                                    </ul>
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    );
-                                                }
-                                                return null;
-                                            }}
-                                        />
-                                        <Bar dataKey="score" fill="#3B82F6" />
-                                    </BarChart>
-                                </ResponsiveContainer>
+                {/* Comprehensive Feedback Analysis */}
+                    {userSelfRating && (
+                        <div className="bg-white border border-gray-200 rounded-lg p-6 mb-6">
+                            <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center">
+                                <span className="w-8 h-8 bg-purple-500 text-white rounded-full flex items-center justify-center text-sm mr-3">👤</span>
+                                Self-Rating vs AI Analysis Comparison
+                            </h2>
+                            
+                            <div className="mb-4 p-3 bg-purple-50 border border-purple-200 rounded-lg">
+                                <p className="text-purple-800 text-sm">
+                                    <strong>Research Insight:</strong> This comparison shows how your self-perception aligns with AI analysis, 
+                                    helping identify areas of awareness and blind spots in speech evaluation.
+                                </p>
                             </div>
+
+                            {/* CSSEF Criteria Comparison */}
+                            <div className="space-y-4">
+                                {Object.entries(userSelfRating.ratings || {}).map(([criterion, ratingData]: [string, any]) => {
+                                    // Get AI score for this criterion from session feedback
+                                    const aiScore = session?.full_analysis_results?.feedback?.cssef_evaluation?.[criterion]?.score;
+                                    
+                                    const criterionTitle = criterion
+                                        .replace('C1_topic_choice', 'Topic Choice & Focus')
+                                        .replace('C2_purpose', 'Thesis & Purpose')
+                                        .replace('C3_supporting_material', 'Supporting Materials')
+                                        .replace('C4_organization', 'Organization & Structure')
+                                        .replace('C5_language_use', 'Language Use')
+                                        .replace('C6_vocal_variety', 'Vocal Variety & Delivery')
+                                        .replace('C7_pronunciation_and_grammar', 'Pronunciation & Grammar')
+                                        .replace('C8_physical_behaviors', 'Physical Behaviors');
+                                    
+                                    const userScore = ratingData.score;
+                                    const hasUserRating = userScore !== null && userScore !== undefined;
+                                    const difference = hasUserRating && aiScore ? Math.abs(userScore - aiScore) : null;
+                                    
+                                    return (
+                                        <div key={criterion} className="border border-gray-200 rounded-lg p-4">
+                                            <div className="flex items-center justify-between mb-3">
+                                                <h4 className="font-medium text-gray-900">{criterionTitle}</h4>
+                                                {difference !== null ? (
+                                                    <div className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                                        difference <= 1 ? 'bg-green-100 text-green-800' :
+                                                        difference <= 2 ? 'bg-yellow-100 text-yellow-800' :
+                                                        'bg-red-100 text-red-800'
+                                                    }`}>
+                                                        {difference <= 1 ? 'Close match' :
+                                                         difference <= 2 ? 'Moderate difference' :
+                                                         'Large difference'}
+                                                    </div>
+                                                ) : !hasUserRating ? (
+                                                    <div className="px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
+                                                        Not self-rated
+                                                    </div>
+                                                ) : null}
+                                            </div>
+                                            
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
+                                                {/* User Self-Rating */}
+                                                <div className={`p-3 rounded-lg ${hasUserRating ? 'bg-purple-50' : 'bg-gray-50'}`}>
+                                                    <div className="flex items-center justify-between mb-2">
+                                                        <span className={`text-sm font-medium ${hasUserRating ? 'text-purple-800' : 'text-gray-600'}`}>
+                                                            Your Rating
+                                                        </span>
+                                                        {hasUserRating ? (
+                                                            <span className="text-lg font-bold text-purple-900">{userScore}/10</span>
+                                                        ) : (
+                                                            <span className="text-sm text-gray-500 italic">Not Rated</span>
+                                                        )}
+                                                    </div>
+                                                    <div className={`w-full rounded-full h-2 ${hasUserRating ? 'bg-purple-200' : 'bg-gray-200'}`}>
+                                                        {hasUserRating && (
+                                                            <div 
+                                                                className="bg-purple-600 h-2 rounded-full"
+                                                                style={{ width: `${(userScore / 10) * 100}%` }}
+                                                            />
+                                                        )}
+                                                    </div>
+                                                </div>
+                                                
+                                                {/* AI Rating */}
+                                                {aiScore ? (
+                                                    <div className="bg-blue-50 p-3 rounded-lg">
+                                                        <div className="flex items-center justify-between mb-2">
+                                                            <span className="text-sm font-medium text-blue-800">AI Analysis</span>
+                                                            <span className="text-lg font-bold text-blue-900">{aiScore}/10</span>
+                                                        </div>
+                                                        <div className="w-full bg-blue-200 rounded-full h-2">
+                                                            <div 
+                                                                className="bg-blue-600 h-2 rounded-full"
+                                                                style={{ width: `${(aiScore / 10) * 100}%` }}
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <div className="bg-gray-50 p-3 rounded-lg">
+                                                        <div className="flex items-center justify-between mb-2">
+                                                            <span className="text-sm font-medium text-gray-600">AI Analysis</span>
+                                                            <span className="text-sm text-gray-500 italic">Not Available</span>
+                                                        </div>
+                                                        <div className="w-full bg-gray-200 rounded-full h-2">
+                                                            {/* Empty progress bar */}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                            
+                                            {/* Analysis */}
+                                            {difference !== null ? (
+                                                <div className="text-sm text-gray-600 mb-2">
+                                                    <strong>Difference:</strong> {difference.toFixed(1)} points
+                                                    {userScore > aiScore ? ' (You rated higher)' : userScore < aiScore ? ' (AI rated higher)' : ' (Perfect match!)'}
+                                                </div>
+                                            ) : hasUserRating && !aiScore ? (
+                                                <div className="text-sm text-gray-600 mb-2">
+                                                    <strong>Note:</strong> You provided a self-rating but AI analysis is not available for this criterion.
+                                                </div>
+                                            ) : !hasUserRating && aiScore ? (
+                                                <div className="text-sm text-gray-600 mb-2">
+                                                    <strong>Note:</strong> AI provided analysis but you didn't rate this criterion.
+                                                </div>
+                                            ) : (
+                                                <div className="text-sm text-gray-600 mb-2">
+                                                    <strong>Note:</strong> Neither self-rating nor AI analysis available for this criterion.
+                                                </div>
+                                            )}
+                                            
+                                            {/* User Comment */}
+                                            {ratingData.comment && (
+                                                <div className="bg-gray-50 p-3 rounded-lg mt-2">
+                                                    <div className="text-sm font-medium text-gray-700 mb-1">Your Reflection:</div>
+                                                    <div className="text-sm text-gray-600 italic">"{ratingData.comment}"</div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                            
+                            {/* Overall Self-Rating Summary */}
+                            {userSelfRating.overall_comment && (
+                                <div className="mt-6 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+                                    <h4 className="font-medium text-gray-900 mb-2">Your Overall Reflection</h4>
+                                    <p className="text-gray-700 text-sm italic">"{userSelfRating.overall_comment}"</p>
+                                    
+                                    {userSelfRating.confidence_level && (
+                                        <div className="mt-3 flex items-center">
+                                            <span className="text-sm text-gray-600 mr-2">Confidence in self-assessment:</span>
+                                            <div className="flex items-center space-x-1">
+                                                {[1, 2, 3, 4, 5].map((level) => (
+                                                    <div
+                                                        key={level}
+                                                        className={`w-3 h-3 rounded-full ${
+                                                            level <= userSelfRating.confidence_level
+                                                                ? 'bg-yellow-400'
+                                                                : 'bg-gray-300'
+                                                        }`}
+                                                    />
+                                                ))}
+                                                <span className="text-sm text-gray-600 ml-2">
+                                                    ({userSelfRating.confidence_level}/5)
+                                                </span>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     )}
 
-                {/* Comprehensive Feedback Analysis */}
                     <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-6">
                         <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center">
                             <span className="w-8 h-8 bg-blue-500 text-white rounded-full flex items-center justify-center text-sm mr-3">AI</span>
@@ -1037,32 +1129,32 @@ export default function SessionDetailPage() {
                 )}
 
 
-{/* 
-                    Audio/Video Player
-                    {session.media_url && (
-                        <div className="bg-white border border-gray-200 rounded-lg p-6">
-                            <h2 className="text-xl font-bold text-gray-900 mb-4">Recording</h2>
-                            <div className="bg-gray-50 rounded-lg p-4">
-                                {session.media_url.includes('video') || session.media_url.includes('.mp4') || session.media_url.includes('.mov') ? (
-                                    <video
-                                        controls
-                                        className="w-full max-h-96 rounded-lg"
-                                        src={session.media_url}
-                                    >
-                                        Your browser does not support the video tag.
-                                    </video>
-                                ) : (
-                                    <audio
-                                        controls
-                                        className="w-full"
-                                        src={session.media_url}
-                                    >
-                                        Your browser does not support the audio tag.
-                                    </audio>
-                                )}
+
+                {/* Add Self-Rating Option */}
+                {!userSelfRating && (
+                    <div className="bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 rounded-lg p-6 mb-6">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <h2 className="text-xl font-bold text-gray-900 mb-2 flex items-center">
+                                    <span className="w-8 h-8 bg-purple-500 text-white rounded-full flex items-center justify-center text-sm mr-3">⭐</span>
+                                    Rate Your Performance
+                                </h2>
+                                <p className="text-gray-600 text-sm">
+                                    Help our research by providing your self-assessment. Compare your perception with AI analysis!
+                                </p>
                             </div>
+                            <button
+                                onClick={() => {
+                                    // For now, navigate to a separate rating page or show inline form
+                                    toast.success("Self-rating feature coming soon! This will allow you to rate your speech and compare with AI analysis.");
+                                }}
+                                className="bg-purple-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-purple-700 transition-colors"
+                            >
+                                Add Self-Rating
+                            </button>
                         </div>
-                    )} */}
+                    </div>
+                )}
 
                 <Toaster
                     position="top-center"

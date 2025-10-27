@@ -1,19 +1,23 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useUser } from '@auth0/nextjs-auth0';
 import { useRouter, useParams } from 'next/navigation';
 import Link from "next/link";
 import { toast, Toaster } from "react-hot-toast";
 import { speechApi, sessionApi } from "../../../../../lib/api";
 import LoadingDots from "../../../../../components/LoadingDots";
+import SelfRatingComponent from "../../../../../components/SelfRatingComponent";
 
 interface Speech {
   id: string;
   title: string;
   description: string;
-  context: string;
   goal: string;
+  audience_description: string;
+  key_points: string;
+  self_improvement_goal: string;
+  context: string;
 }
 
 export default function NewSessionPage() {
@@ -29,6 +33,9 @@ export default function NewSessionPage() {
   const [sessionTitle, setSessionTitle] = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [dragOver, setDragOver] = useState(false);
+  const [audioPreviewUrl, setAudioPreviewUrl] = useState<string | null>(null);
+  const [selfRatingCompleted, setSelfRatingCompleted] = useState(false);
+  const [selfRatingData, setSelfRatingData] = useState<any>(null);
 
   // Redirect to login if not authenticated
   if (!isLoading && !user) {
@@ -74,6 +81,11 @@ export default function NewSessionPage() {
     }
 
     setSelectedFile(file);
+    
+    // Create preview URL for audio/video
+    const previewUrl = URL.createObjectURL(file);
+    setAudioPreviewUrl(previewUrl);
+    
     toast.success("File selected successfully!");
   };
 
@@ -112,11 +124,26 @@ export default function NewSessionPage() {
       return;
     }
 
+    if (!selfRatingCompleted) {
+      toast.error("Please complete your self-rating before starting analysis");
+      return;
+    }
+
     setUploading(true);
     
     try {
-      // Update the sessionApi to include session title
+      // Create session first
       const result = await sessionApi.analyzeAndCreateSession(speechId, selectedFile, sessionTitle.trim() || undefined);
+      
+      // Save self-rating data to the session
+      if (selfRatingData) {
+        try {
+          await sessionApi.saveSelfRating(result.session_id, selfRatingData);
+        } catch (error) {
+          console.error("Error saving self-rating:", error);
+          toast.error("Session created but failed to save self-rating");
+        }
+      }
       
       toast.success("Session created and analysis completed!");
       router.push(`/speeches/${speechId}/sessions/${result.session_id}`);
@@ -128,12 +155,33 @@ export default function NewSessionPage() {
     }
   };
 
-  const resetFile = () => {
+  const handleSelfRatingChange = useCallback((data: any, isComplete: boolean) => {
+    setSelfRatingData(data);
+    setSelfRatingCompleted(isComplete);
+  }, []);  const resetFile = () => {
     setSelectedFile(null);
+    setSelfRatingCompleted(false);
+    setSelfRatingData(null);
+    
+    // Clean up preview URL
+    if (audioPreviewUrl) {
+      URL.revokeObjectURL(audioPreviewUrl);
+      setAudioPreviewUrl(null);
+    }
+    
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
   };
+
+  // Clean up preview URL when component unmounts
+  useEffect(() => {
+    return () => {
+      if (audioPreviewUrl) {
+        URL.revokeObjectURL(audioPreviewUrl);
+      }
+    };
+  }, [audioPreviewUrl]);
 
   if (isLoading || loading) {
     return (
@@ -172,6 +220,130 @@ export default function NewSessionPage() {
           <p className="text-gray-600">
             For: <span className="font-medium">{speech.title}</span>
           </p>
+        </div>
+
+        {/* Speech Information Card */}
+        <div className="bg-gradient-to-r from-slate-50 to-blue-50 border border-slate-200 rounded-lg p-6 mb-8">
+          <div className="flex items-center space-x-3 mb-4">
+            <div className="w-10 h-10 bg-blue-500 text-white rounded-full flex items-center justify-center">
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-slate-900">{speech.title}</h2>
+              <div className="flex items-center space-x-4 text-sm text-slate-600">
+                {speech.context && (
+                  <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-medium">
+                    {speech.context.charAt(0).toUpperCase() + speech.context.slice(1)}
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            {/* Description */}
+            {speech.description && (
+              <div>
+                <h3 className="text-sm font-semibold text-slate-700 mb-2 flex items-center">
+                  <svg className="w-4 h-4 mr-2 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" />
+                  </svg>
+                  Description
+                </h3>
+                <p className="text-slate-600 text-sm leading-relaxed bg-white/50 rounded-md p-3 border border-slate-200">
+                  {speech.description}
+                </p>
+              </div>
+            )}
+
+            {/* Goal */}
+            {speech.goal && (
+              <div>
+                <h3 className="text-sm font-semibold text-slate-700 mb-2 flex items-center">
+                  <svg className="w-4 h-4 mr-2 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
+                  </svg>
+                  Goal & Purpose
+                </h3>
+                <p className="text-slate-600 text-sm leading-relaxed bg-white/50 rounded-md p-3 border border-slate-200">
+                  {speech.goal}
+                </p>
+              </div>
+            )}
+
+            {/* Audience Description */}
+            {speech.audience_description && (
+              <div>
+                <h3 className="text-sm font-semibold text-slate-700 mb-2 flex items-center">
+                  <svg className="w-4 h-4 mr-2 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 01-3 0m3 0V5.372a1.5 1.5 0 00-.83-1.342l-2.66-1.33a1.5 1.5 0 00-1.34 0l-2.66 1.33A1.5 1.5 0 007.5 5.372V8.5" />
+                  </svg>
+                  Target Audience
+                </h3>
+                <p className="text-slate-600 text-sm leading-relaxed bg-white/50 rounded-md p-3 border border-slate-200">
+                  {speech.audience_description}
+                </p>
+              </div>
+            )}
+
+            {/* Key Points */}
+            {speech.key_points && (
+              <div>
+                <h3 className="text-sm font-semibold text-slate-700 mb-2 flex items-center">
+                  <svg className="w-4 h-4 mr-2 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                  </svg>
+                  Key Points & Outline
+                </h3>
+                <div className="text-slate-600 text-sm leading-relaxed bg-white/50 rounded-md p-3 border border-slate-200">
+                  {speech.key_points.split('\n').map((point, index) => (
+                    <div key={index} className="mb-1">
+                      {point.trim() && (
+                        <span className="flex items-start">
+                          <span className="text-blue-500 mr-2 mt-1">•</span>
+                          <span>{point.trim()}</span>
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Self Improvement Goal */}
+            {speech.self_improvement_goal && (
+              <div>
+                <h3 className="text-sm font-semibold text-slate-700 mb-2 flex items-center">
+                  <svg className="w-4 h-4 mr-2 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                  What You Want to Improve
+                </h3>
+                <p className="text-slate-600 text-sm leading-relaxed bg-white/50 rounded-md p-3 border border-slate-200">
+                  {speech.self_improvement_goal}
+                </p>
+              </div>
+            )}
+
+            {/* Quick Tips */}
+            <div className="bg-amber-50 border border-amber-200 rounded-md p-3">
+              <h3 className="text-sm font-semibold text-amber-800 mb-2 flex items-center">
+                <svg className="w-4 h-4 mr-2 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                </svg>
+                Practice Tips
+              </h3>
+              <ul className="text-xs text-amber-700 space-y-1">
+                <li>• Review your key points before recording</li>
+                <li>• Keep your target audience in mind</li>
+                <li>• Focus on your improvement goals</li>
+                <li>• Practice with confidence and clarity</li>
+                <li>• Remember the context: <strong>{speech.context}</strong></li>
+              </ul>
+            </div>
+          </div>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -270,39 +442,119 @@ export default function NewSessionPage() {
             )}
           </div>
 
+          {/* Audio/Video Preview */}
+          {selectedFile && audioPreviewUrl && (
+            <div className="mt-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Preview Your Recording
+              </label>
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-4 border-2 border-blue-200">
+                <div className="flex items-center space-x-3 mb-3">
+                  <div className="w-8 h-8 bg-blue-500 text-white rounded-full flex items-center justify-center">
+                    {selectedFile.type.startsWith('video/') ? '🎥' : '🎵'}
+                  </div>
+                  <div>
+                    <h3 className="font-medium text-gray-900">
+                      {selectedFile.type.startsWith('video/') ? 'Video Recording' : 'Audio Recording'}
+                    </h3>
+                    <p className="text-sm text-gray-600">{selectedFile.name}</p>
+                  </div>
+                </div>
+                
+                {selectedFile.type.startsWith('video/') ? (
+                  <video
+                    controls
+                    className="w-full max-h-64 rounded-lg"
+                    src={audioPreviewUrl}
+                    preload="metadata"
+                    style={{ backgroundColor: '#f3f4f6' }}
+                  >
+                    Your browser does not support the video tag.
+                  </video>
+                ) : (
+                  <audio
+                    controls
+                    className="w-full"
+                    src={audioPreviewUrl}
+                    preload="metadata"
+                    style={{ 
+                      filter: 'sepia(0) hue-rotate(200deg) saturate(1.2)',
+                      borderRadius: '8px'
+                    }}
+                  >
+                    Your browser does not support the audio tag.
+                  </audio>
+                )}
+                
+                <div className="flex items-center justify-between mt-3">
+                  <div className="text-xs text-gray-500">
+                    💡 Listen to your recording to make sure it's clear and complete
+                  </div>
+                  <button
+                    type="button"
+                    onClick={resetFile}
+                    className="text-red-600 hover:text-red-800 hover:underline font-medium text-sm"
+                  >
+                    🔄 Choose Different File
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Self-Rating Section - Show only when file is selected */}
+          {selectedFile && (
+            <div className="mt-8">
+              <SelfRatingComponent
+                onChange={handleSelfRatingChange}
+                context={speech?.context}
+                isLoading={false}
+                initialData={selfRatingData}
+              />
+            </div>
+          )}
+
           {/* Submit Button */}
           <div className="pt-4">
             {uploading ? (
               <div className="w-full bg-gray-400 text-white font-medium py-4 px-4 rounded-md cursor-not-allowed flex items-center justify-center">
                 <LoadingDots color="white" />
-                <span className="ml-2">Analyzing speech...</span>
+                <span className="ml-2">Creating session and analyzing speech...</span>
               </div>
             ) : (
               <button
                 type="submit"
-                disabled={!selectedFile}
+                disabled={!selectedFile || !selfRatingCompleted}
                 className={`w-full font-medium py-4 px-4 rounded-md transition-colors ${
-                  selectedFile
-                    ? 'bg-black text-white hover:bg-gray-800'
+                  selectedFile && selfRatingCompleted
+                    ? 'bg-green-600 text-white hover:bg-green-700'
                     : 'bg-gray-300 text-gray-500 cursor-not-allowed'
                 }`}
               >
-                Start Analysis
+                {!selectedFile ? 'Select File First' : 
+                 !selfRatingCompleted ? 'Complete Self-Rating First' : 
+                 '🚀 Start AI Analysis'}
               </button>
             )}
-          </div>
-
-          {/* Help Text */}
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <h3 className="font-medium text-blue-900 mb-2">Tips for better analysis:</h3>
-            <ul className="text-sm text-blue-800 space-y-1">
-              <li>• Record in a quiet environment with minimal background noise</li>
-              <li>• Speak clearly and at a normal pace</li>
-              <li>• Keep your recording device at a consistent distance</li>
-              <li>• Aim for recordings between 1-15 minutes for best results</li>
-            </ul>
+            
+            {selectedFile && !selfRatingCompleted && (
+              <p className="text-sm text-gray-600 text-center mt-2">
+                Please complete your self-rating above to enable the analysis button
+              </p>
+            )}
           </div>
         </form>
+
+        {/* Help Text */}
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mt-6">
+          <h3 className="font-medium text-blue-900 mb-2">Tips for better analysis:</h3>
+          <ul className="text-sm text-blue-800 space-y-1">
+            <li>• Record in a quiet environment with minimal background noise</li>
+            <li>• Speak clearly and at a normal pace</li>
+            <li>• Keep your recording device at a consistent distance</li>
+            <li>• Aim for recordings between 1-15 minutes for best results</li>
+          </ul>
+        </div>
 
         <Toaster
           position="top-center"
