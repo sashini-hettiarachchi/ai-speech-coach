@@ -175,6 +175,22 @@ export const sessionApi = {
 
     return response.data;
   },
+
+  // Refresh media URL for a session
+  refreshMediaUrl: async (sessionId: string): Promise<any> => {
+    const response = await authenticatedFetch(`/api/v1/sessions/${sessionId}/refresh-media-url`, {
+      method: 'POST',
+    });
+    return response.data;
+  },
+
+  // Fix missing blob name for a session
+  fixBlobName: async (sessionId: string): Promise<any> => {
+    const response = await authenticatedFetch(`/api/v1/sessions/${sessionId}/fix-blob-name`, {
+      method: 'POST',
+    });
+    return response.data;
+  },
 };
 
 export default { speechApi, sessionApi };

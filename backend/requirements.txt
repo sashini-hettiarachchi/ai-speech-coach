@@ -149,3 +149,6 @@ cryptography==41.0.7
 
 # Environment variables
 python-dotenv==1.0.1
+
+# Google Cloud Storage
+google-cloud-storage==2.10.0

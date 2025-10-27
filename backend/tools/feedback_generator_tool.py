@@ -590,7 +590,6 @@ Give response ONLY in the specified JSON format without any additional commentar
             response = requests.post(self.llm_endpoint, headers=headers, json=data)
             response.raise_for_status()
             result = response.json()
-            print("result:", result)
             llm_response = result.get("response", "")
             print("LLM raw response:", llm_response)
 
@@ -878,7 +877,6 @@ Respond **only** in valid JSON. No extra text, markdown, or commentary.
             response.raise_for_status()
             result = response.json()
             llm_response = result.get("response", "")
-            print("LLM raw response:", llm_response)
 
             # Parse the LLM response using Pydantic model
             # Handle both dictionary and string responses from Ollama

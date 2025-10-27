@@ -12,6 +12,7 @@ import dynamic from "next/dynamic";
 // Dynamically import charts to avoid SSR issues
 const FillerWordsChart = dynamic(() => import("../../../../../components/FillerWordsCharts"), { ssr: false });
 const DeliveryMetricsTable = dynamic(() => import("../../../../../components/DeliveryMetrics"), { ssr: false });
+const MediaPlayer = dynamic(() => import("../../../../../components/MediaPlayer"), { ssr: false });
 
 // Dynamic imports for recharts
 const BarChart = dynamic(() => import('recharts').then(mod => mod.BarChart), { ssr: false });
@@ -71,6 +72,8 @@ interface Session {
     filler_word_count: number;
     filler_word_percentage: number;
     media_url: string;
+    media_type: string;
+    original_filename: string;
     created_at: string;
     duration_seconds: number;
     words_per_minute: number;
@@ -154,6 +157,13 @@ export default function SessionDetailPage() {
     const [speech, setSpeech] = useState<Speech | null>(null);
     const [session, setSession] = useState<Session | null>(null);
     const [loading, setLoading] = useState(true);
+
+    // Handle media URL refresh
+    const handleMediaUrlRefresh = (newUrl: string) => {
+        if (session) {
+            setSession({ ...session, media_url: newUrl });
+        }
+    };
 
     // Redirect to login if not authenticated
     if (!isLoading && !user) {
@@ -1011,6 +1021,20 @@ export default function SessionDetailPage() {
                         </div>
 
                     </div>
+
+                {/* Audio/Video Player */}
+                {session.media_url && (
+                    <div className="bg-white border border-gray-200 rounded-lg p-6 mb-6">
+                        <h2 className="text-xl font-bold text-gray-900 mb-4">Recording</h2>
+                        <MediaPlayer
+                            mediaUrl={session.media_url}
+                            mediaType={session.media_type as 'audio' | 'video'}
+                            originalFilename={session.original_filename}
+                            sessionId={session.id}
+                            onUrlRefresh={handleMediaUrlRefresh}
+                        />
+                    </div>
+                )}
 
 
 {/* 

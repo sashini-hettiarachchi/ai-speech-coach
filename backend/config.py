@@ -32,6 +32,11 @@ CORS_SUPPORTS_CREDENTIALS = True
 # File Storage
 UPLOAD_FOLDER = os.environ.get("UPLOAD_FOLDER", "uploads")
 
+# Google Cloud Storage Configuration
+GCS_BUCKET_NAME = os.environ.get("GCS_BUCKET_NAME", "speech-coach-files")
+GCS_CREDENTIALS_PATH = os.environ.get("GCS_CREDENTIALS_PATH", os.environ.get("SERVICE_ACCOUNT_KEY_PATH", "key.json"))
+GCS_PUBLIC_URL_BASE = os.environ.get("GCS_PUBLIC_URL_BASE", f"https://storage.googleapis.com/{GCS_BUCKET_NAME}")
+
 # LLM Configuration
 LLM_ENDPOINT = os.environ.get("LLM_ENDPOINT", "http://localhost:11434/api/generate")
 LLM_MODEL = os.environ.get("LLM_MODEL", "llama3")

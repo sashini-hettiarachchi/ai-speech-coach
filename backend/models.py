@@ -104,7 +104,7 @@ class Session(db.Model):
     title = db.Column(db.String(255))  # Optional session title
     
     # Media Information
-    media_url = db.Column(db.String(500))  # Path to stored audio/video file
+    media_url = db.Column(db.String(2000))  # Path to stored audio/video file (increased for GCS signed URLs)
     media_type = db.Column(db.String(50))  # 'audio' or 'video'
     original_filename = db.Column(db.String(255))
     duration_seconds = db.Column(db.Float)

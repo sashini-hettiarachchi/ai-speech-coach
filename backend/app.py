@@ -36,6 +36,7 @@ from tools.feedback_generator_tool import FeedbackGeneratorTool, FeedbackGenerat
 
 # Import utilities for backward compatibility
 from utils.filler_detector import count_filler_words
+from utils.gcs_storage import upload_speech_file, delete_speech_file, refresh_media_url
 
 
 app = Flask(__name__)
@@ -106,12 +107,26 @@ def analyze_speech():
 
         print(f"🎯 Analysis request - User: {auth0_user_id}, Speech: {speech.title}, Context: {context_label}")
         
-        # Save uploaded file
+        # Save uploaded file temporarily
         filename = file.filename
-        filepath = os.path.join(UPLOAD_FOLDER, filename)
-        file.save(filepath)
+        temp_filepath = os.path.join(UPLOAD_FOLDER, f"temp_{filename}")
+        file.save(temp_filepath)
         
-        print(f"💾 File saved: {filepath}")
+        print(f"💾 File saved temporarily: {temp_filepath}")
+        
+        # Upload to Google Cloud Storage
+        try:
+            blob_name, gcs_signed_url = upload_speech_file(temp_filepath, filename)
+            print(f"☁️ File uploaded to GCS: {gcs_signed_url}")
+            print(f"📏 GCS URL length: {len(gcs_signed_url)} characters")
+        except Exception as gcs_error:
+            print(f"❌ GCS upload failed: {str(gcs_error)}")
+            # Clean up temp file
+            try:
+                os.remove(temp_filepath)
+            except:
+                pass
+            return jsonify({"error": f"File upload failed: {str(gcs_error)}"}), 500
         
         # Initialize MCP tools
         tools = {
@@ -125,22 +140,22 @@ def analyze_speech():
         }
         
         # Check if the file is a video
-        _, ext = os.path.splitext(filepath)
+        _, ext = os.path.splitext(temp_filepath)
         is_video = ext.lower() in ['.mp4', '.avi', '.mov', '.mkv', '.webm']
         if is_video:
             tools["video_pose"] = VideoPoseTool()
             
         # Step 1: Transcribe audio
         print("🗣️ Starting transcription...")
-        transcription_result = tools["transcribe"]({"file_path": filepath})
+        transcription_result = tools["transcribe"]({"file_path": temp_filepath})
         transcript = transcription_result.transcript
         segments = transcription_result.segments
         print("✅ Transcription completed", transcript, segments)
 
         # Step 2: Analyze audio prosody
         print("🎵 Analyzing audio prosody...")
-        prosody_result = tools["audio_prosody"]({"file_path": filepath, "transcript": transcript})
-        print("✅ Audio prosody analysis completed", prosody_result)
+        prosody_result = tools["audio_prosody"]({"file_path": temp_filepath, "transcript": transcript})
+        print("✅ Audio prosody analysis completed")
         
         filler_result = tools["filler_detector"]({"transcript": transcript, "use_llm": True})
         filler_analysis = filler_result.dict()
@@ -180,11 +195,16 @@ def analyze_speech():
         
         # Save session to database
         try:
+            # Validate URL length before saving
+            if len(gcs_signed_url) > 2000:
+                print(f"⚠️ Warning: GCS URL length ({len(gcs_signed_url)}) exceeds database limit")
+                return jsonify({"error": "Generated URL is too long for database storage"}), 500
+            
             # Create new session record
             session = Session(
                 speech_id=speech.id,
                 title=session_title,  # Add the optional session title
-                media_url=filepath,
+                media_url=gcs_signed_url,  # Store GCS signed URL instead of local path
                 media_type='video' if is_video else 'audio',
                 original_filename=filename,
                 transcript=transcript,
@@ -208,7 +228,8 @@ def analyze_speech():
                     "audio_prosody": prosody_result.dict(),
                     "filler_analysis": filler_analysis,
                     "feedback": feedback_result.dict(),
-                    "feedback_without_context": feedback_without_context
+                    "feedback_without_context": feedback_without_context,
+                    "gcs_blob_name": blob_name  # Store blob name for future operations
                 },
                 analysis_version="1.0"
             )
@@ -256,11 +277,12 @@ def analyze_speech():
         # if video_result:
         #     response["analysis"]["video"] = video_result.dict()
             
-        # Clean up uploaded file
+        # Clean up temporary uploaded file
         try:
-            os.remove(filepath)
+            os.remove(temp_filepath)
+            print(f"🗑️ Cleaned up temporary file: {temp_filepath}")
         except Exception as e:
-            print(f"⚠️ Could not remove file {filepath}: {e}")
+            print(f"⚠️ Could not remove temporary file {temp_filepath}: {e}")
         
         print("✅ Analysis completed successfully")
         return jsonify(response)
@@ -556,6 +578,128 @@ def get_session(session_id):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@app.route('/api/v1/sessions/<int:session_id>/fix-blob-name', methods=['POST'])
+@auth0_required
+def fix_session_blob_name(session_id):
+    """Fix missing blob name in session's full_analysis_results"""
+    try:
+        user = get_current_user()
+        session = Session.query.join(Speech).filter(
+            Session.id == session_id,
+            Speech.user_id == user.id
+        ).first()
+        
+        if not session:
+            return jsonify({"error": "Session not found"}), 404
+        
+        if not session.media_url:
+            return jsonify({"error": "No media URL found for this session"}), 400
+        
+        # Extract blob name from media URL
+        blob_name = None
+        try:
+            from urllib.parse import urlparse, unquote
+            parsed = urlparse(session.media_url)
+            
+            if '/storage/v1/b/' in parsed.path and '/o/' in parsed.path:
+                path_parts = parsed.path.split('/o/')
+                if len(path_parts) > 1:
+                    blob_name = unquote(path_parts[1].split('?')[0])
+            elif parsed.netloc == 'storage.googleapis.com':
+                path_parts = parsed.path.strip('/').split('/', 1)
+                if len(path_parts) > 1:
+                    blob_name = path_parts[1]
+        except Exception as e:
+            return jsonify({"error": f"Could not extract blob name: {str(e)}"}), 400
+        
+        if not blob_name:
+            return jsonify({"error": "Could not extract blob name from media URL"}), 400
+        
+        # Update session's full_analysis_results with blob name
+        if not session.full_analysis_results:
+            session.full_analysis_results = {}
+        
+        session.full_analysis_results['gcs_blob_name'] = blob_name
+        db.session.commit()
+        
+        return jsonify({
+            "status": "success",
+            "message": "Blob name updated successfully",
+            "blob_name": blob_name
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/v1/sessions/<int:session_id>/refresh-media-url', methods=['POST'])
+@auth0_required
+def refresh_session_media_url(session_id):
+    """Refresh the signed URL for a session's media file"""
+    try:
+        user = get_current_user()
+        session = Session.query.join(Speech).filter(
+            Session.id == session_id,
+            Speech.user_id == user.id
+        ).first()
+        
+        if not session:
+            return jsonify({"error": "Session not found"}), 404
+        
+        # Get blob name from full analysis results or extract from media URL
+        blob_name = None
+        if session.full_analysis_results and isinstance(session.full_analysis_results, dict):
+            blob_name = session.full_analysis_results.get('gcs_blob_name')
+        
+        # If no blob name in results, try to extract from media_url
+        if not blob_name and session.media_url:
+            # Extract blob name from GCS signed URL
+            # Signed URLs contain the blob path, we need to extract it
+            try:
+                from urllib.parse import urlparse, unquote
+                parsed = urlparse(session.media_url)
+                
+                # For GCS signed URLs, the path contains /storage/v1/b/bucket-name/o/blob-name
+                if '/storage/v1/b/' in parsed.path and '/o/' in parsed.path:
+                    # Extract blob name from signed URL path
+                    path_parts = parsed.path.split('/o/')
+                    if len(path_parts) > 1:
+                        blob_name = unquote(path_parts[1].split('?')[0])  # Remove query params
+                elif parsed.netloc == 'storage.googleapis.com':
+                    # For public URLs: https://storage.googleapis.com/bucket/blob-name
+                    path_parts = parsed.path.strip('/').split('/', 1)
+                    if len(path_parts) > 1:
+                        blob_name = path_parts[1]
+                
+                print(f"🔍 Extracted blob name from URL: {blob_name}")
+            except Exception as extract_error:
+                print(f"⚠️ Could not extract blob name from URL: {str(extract_error)}")
+        
+        if not blob_name:
+            return jsonify({"error": "No GCS blob name found for this session and could not extract from URL"}), 400
+        
+        # Generate new signed URL (6 days expiration)
+        new_signed_url = refresh_media_url(blob_name, hours=144)
+        
+        if not new_signed_url:
+            return jsonify({"error": "Failed to generate new signed URL"}), 500
+        
+        # Update session with new URL
+        session.media_url = new_signed_url
+        db.session.commit()
+        
+        return jsonify({
+            "status": "success",
+            "media_url": new_signed_url,
+            "expires_in_hours": 144
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route('/api/v1/sessions/<int:session_id>', methods=['DELETE'])
 @auth0_required
 def delete_session(session_id):
@@ -570,12 +714,43 @@ def delete_session(session_id):
         if not session:
             return jsonify({"error": "Session not found"}), 404
         
-        # Delete associated media file if it exists
-        if session.media_url and os.path.exists(session.media_url):
+        # Delete associated media file from GCS if it exists
+        if session.media_url:
             try:
-                os.remove(session.media_url)
+                # Extract blob name from full analysis results or media URL
+                blob_name = None
+                if session.full_analysis_results and isinstance(session.full_analysis_results, dict):
+                    blob_name = session.full_analysis_results.get('gcs_blob_name')
+                
+                # If no blob name in results, try to extract from media_url
+                if not blob_name:
+                    try:
+                        from urllib.parse import urlparse, unquote
+                        parsed = urlparse(session.media_url)
+                        
+                        # Extract blob name from GCS URL
+                        if '/storage/v1/b/' in parsed.path and '/o/' in parsed.path:
+                            path_parts = parsed.path.split('/o/')
+                            if len(path_parts) > 1:
+                                blob_name = unquote(path_parts[1].split('?')[0])
+                        elif parsed.netloc == 'storage.googleapis.com':
+                            path_parts = parsed.path.strip('/').split('/', 1)
+                            if len(path_parts) > 1:
+                                blob_name = path_parts[1]
+                    except Exception as extract_error:
+                        print(f"⚠️ Could not extract blob name for deletion: {str(extract_error)}")
+                
+                if blob_name:
+                    success = delete_speech_file(blob_name)
+                    if success:
+                        print(f"✅ Deleted GCS file: {blob_name}")
+                    else:
+                        print(f"⚠️ Could not delete GCS file: {blob_name}")
+                else:
+                    print(f"⚠️ No blob name found for session {session_id}")
+                    
             except Exception as e:
-                print(f"Warning: Could not delete media file {session.media_url}: {str(e)}")
+                print(f"⚠️ Error deleting GCS file for session {session_id}: {str(e)}")
         
         db.session.delete(session)
         db.session.commit()
@@ -604,6 +779,8 @@ if __name__ == '__main__':
     print("   • GET  /api/v1/speeches/{id}/sessions - List speech sessions")
     print("   • GET  /api/v1/sessions/{id} - Get session details")
     print("   • DELETE /api/v1/sessions/{id} - Delete session")
+    print("   • POST /api/v1/sessions/{id}/refresh-media-url - Refresh expired media URL")
+    print("   • POST /api/v1/sessions/{id}/fix-blob-name - Fix missing GCS blob name")
     print(f"📂 Upload folder: {UPLOAD_FOLDER}")
     print(f"🔗 Accepting CORS from: {CORS_ORIGINS}")
     print(f"🗄️ Database: {SQLALCHEMY_DATABASE_URI.split('@')[1] if '@' in SQLALCHEMY_DATABASE_URI else 'Not configured'}")
