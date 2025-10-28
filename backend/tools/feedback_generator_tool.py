@@ -16,11 +16,15 @@ from tools.base import BaseTool
 
 # Import configuration with fallback
 try:
-    from config import LLM_ENDPOINT, LLM_MODEL, LLM_TEMPERATURE
+    from config import LLM_ENDPOINT, LLM_MODEL, LLM_TEMPERATURE, OPENAI_API_KEY, OPENAI_MODEL, OPENAI_TEMPERATURE, USE_OPENAI
 except ImportError:
     LLM_ENDPOINT = "http://localhost:11434/api/generate"
     LLM_MODEL = "llama3"
     LLM_TEMPERATURE = 0.3
+    OPENAI_API_KEY = ""
+    OPENAI_MODEL = "gpt-4o-mini"
+    OPENAI_TEMPERATURE = 0.3
+    USE_OPENAI = False
 
 # Import filler detector
 from utils.filler_detector import count_filler_words
@@ -186,6 +190,26 @@ class FeedbackGeneratorTool(
         self.llm_endpoint = LLM_ENDPOINT
         self.llm_model = LLM_MODEL
         self.llm_temperature = LLM_TEMPERATURE
+        
+        # OpenAI configuration
+        self.use_openai = USE_OPENAI
+        self.openai_api_key = OPENAI_API_KEY
+        self.openai_model = OPENAI_MODEL
+        self.openai_temperature = OPENAI_TEMPERATURE
+        
+        # Initialize OpenAI client if needed
+        self.openai_client = None
+        if self.use_openai and self.openai_api_key:
+            try:
+                from openai import OpenAI
+                self.openai_client = OpenAI(api_key=self.openai_api_key)
+                print("OpenAI client initialized successfully")
+            except ImportError:
+                print("Warning: OpenAI library not installed. Install with: pip install openai")
+                self.use_openai = False
+            except Exception as e:
+                print(f"Warning: Failed to initialize OpenAI client: {e}")
+                self.use_openai = False
 
         # Load CSSEF competencies and weights from context_weights.json
         self.context_weights_data = self._load_context_weights()
@@ -198,7 +222,6 @@ class FeedbackGeneratorTool(
         try:
             with open(weights_path, "r") as f:
                 weights_data = json.load(f)
-            print("Successfully loaded context weights data", weights_data)
             return weights_data
         except (FileNotFoundError, json.JSONDecodeError) as e:
             print(
@@ -576,83 +599,12 @@ IMPORTANT JSON FORMAT RULES:
 Give response ONLY in the specified JSON format without any additional commentary or explanation.
 """
         print("prompt", prompt)
-        # Call the LLM API with structured output format using Pydantic schema
-        headers = {"Content-Type": "application/json"}
-        data = {
-            "model": self.llm_model,
-            "prompt": prompt,
-            "temperature": self.llm_temperature,
-            "stream": False,
-            "format": LLMFeedbackSchema.model_json_schema(),
-        }
-
-        try:
-            response = requests.post(self.llm_endpoint, headers=headers, json=data)
-            response.raise_for_status()
-            result = response.json()
-            llm_response = result.get("response", "")
-            print("LLM raw response:", llm_response)
-
-            # Parse the LLM response using Pydantic model
-            # Handle both dictionary and string responses from Ollama
-            try:
-                if isinstance(llm_response, dict):
-                    # Response is already a dictionary - validate with Pydantic
-                    feedback_data = LLMFeedbackSchema.model_validate(llm_response)
-                    print("Successfully validated dictionary response with Pydantic")
-                elif isinstance(llm_response, str):
-                    # Response is a string - parse as JSON then validate
-                    feedback_data = LLMFeedbackSchema.model_validate_json(llm_response)
-                    print("Successfully validated string response with Pydantic")
-                else:
-                    raise ValueError(f"Unexpected response type: {type(llm_response)}")
-
-                # Convert to dictionary for further processing
-                llm_feedback = feedback_data.model_dump()
-                print("Validated LLM response:", llm_feedback)
-                return llm_feedback
-
-            except (ValueError, TypeError) as e:
-                print(f"Failed to validate LLM response: {e}")
-                # Try to extract JSON from code blocks if needed
-                if isinstance(llm_response, str):
-                    # Try to find JSON content between code blocks
-                    json_match = re.search(
-                        r"```(?:json)?(.*?)```", llm_response, re.DOTALL
-                    )
-                    if json_match:
-                        try:
-                            json_str = json_match.group(1).strip()
-                            feedback_data = LLMFeedbackSchema.model_validate_json(
-                                json_str
-                            )
-                            llm_feedback = feedback_data.model_dump()
-                            print(
-                                "Successfully validated JSON from code block with Pydantic"
-                            )
-                            return llm_feedback
-                        except Exception as e:
-                            print(f"Failed to parse JSON from code block: {e}")
-
-                # Create a basic feedback structure if all parsing attempts fail
-                print("Using fallback feedback structure")
-                return {
-                    "summary": "The speaker's presentation needs improvement in several areas.",
-                    "cssef_evaluation": {},
-                    "strengths": [],
-                    "issues": [],
-                    "suggestions": [
-                        "Practice more regularly",
-                        "Focus on clear topic definition",
-                    ],
-                    "improved_excerpt": None,
-                    "exercises": [],
-                    "motivation": "Keep practicing to improve your speaking skills!",
-                }
-
-        except (requests.RequestException, KeyError) as e:
-            print(f"Error calling LLM API: {e}")
-            return None
+        
+        # Choose between OpenAI and Ollama based on configuration
+        if self.use_openai and self.openai_client:
+            return self._call_openai_api(prompt)
+        else:
+            return self._call_ollama_api(prompt)
 
     def _generate_llm_feedback(self, inputs: FeedbackGeneratorToolInput) -> Dict:
         """
@@ -862,7 +814,44 @@ Respond **only** in valid JSON. No extra text, markdown, or commentary.
 
 """
         print("prompt", prompt)
-        # Call the LLM API with structured output format using Pydantic schema
+        
+        # Choose between OpenAI and Ollama based on configuration
+        if self.use_openai and self.openai_client:
+            return self._call_openai_api(prompt)
+        else:
+            return self._call_ollama_api(prompt)
+
+    def _call_openai_api(self, prompt: str) -> Dict:
+        """Call OpenAI API for feedback generation"""
+        try:
+            # Create the schema for structured output
+            schema = LLMFeedbackSchema.model_json_schema()
+            
+            response = self.openai_client.chat.completions.create(
+                model=self.openai_model,
+                messages=[
+                    {"role": "system", "content": "You are an expert public speaking coach. Respond only in valid JSON format according to the provided schema."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=self.openai_temperature,
+                response_format={"type": "json_object"}
+            )
+            
+            llm_response = response.choices[0].message.content
+            print("OpenAI response:", llm_response)
+            
+            # Parse and validate the response
+            feedback_data = LLMFeedbackSchema.model_validate_json(llm_response)
+            llm_feedback = feedback_data.model_dump()
+            print("Successfully validated OpenAI response with Pydantic")
+            return llm_feedback
+            
+        except Exception as e:
+            print(f"Error calling OpenAI API: {e}")
+            return self._get_fallback_feedback()
+
+    def _call_ollama_api(self, prompt: str) -> Dict:
+        """Call Ollama API for feedback generation"""
         headers = {"Content-Type": "application/json"}
         data = {
             "model": self.llm_model,
@@ -938,3 +927,19 @@ Respond **only** in valid JSON. No extra text, markdown, or commentary.
         except (requests.RequestException, KeyError) as e:
             print(f"Error calling LLM API: {e}")
             return None
+
+    def _get_fallback_feedback(self) -> Dict:
+        """Return a basic feedback structure when API calls fail"""
+        return {
+            "summary": "The speaker's presentation needs improvement in several areas.",
+            "cssef_evaluation": {},
+            "strengths": [],
+            "issues": [],
+            "suggestions": [
+                "Practice more regularly",
+                "Focus on clear topic definition",
+            ],
+            "improved_excerpt": None,
+            "exercises": [],
+            "motivation": "Keep practicing to improve your speaking skills!",
+        }

@@ -31,6 +31,10 @@ Speech Coach is a comprehensive speech analysis and coaching API that uses the M
    - `FRONTEND_URL`: Frontend URL for CORS (default: http://localhost:3000)
    - `LLM_ENDPOINT`: Endpoint for LLM API (default: http://localhost:11434/api/generate)
    - `LLM_MODEL`: Model to use for recommendations (default: llama3)
+   - `USE_OPENAI`: Whether to use OpenAI API instead of local Ollama (default: False)
+   - `OPENAI_API_KEY`: Your OpenAI API key (required if USE_OPENAI=True)
+   - `OPENAI_MODEL`: OpenAI model to use (default: gpt-4o-mini)
+   - `OPENAI_TEMPERATURE`: Temperature for OpenAI API calls (default: 0.7)
 
 4. **Run the app:**
    ```zsh
@@ -117,9 +121,32 @@ curl -X POST http://localhost:5000/api/v1/mcp/feedback \
 
 ## LLM Integration
 
-The app integrates with LLM services for generating personalized recommendations.
+The app supports two LLM options for generating personalized recommendations:
 
-### Setting up Ollama LLM Service
+### Option 1: OpenAI API (Recommended for production)
+
+To use OpenAI's GPT models for higher quality feedback:
+
+1. **Get an OpenAI API key** from https://platform.openai.com/api-keys
+
+2. **Set environment variables:**
+   ```bash
+   export USE_OPENAI=True
+   export OPENAI_API_KEY=your-api-key-here
+   export OPENAI_MODEL=gpt-4o-mini  # or gpt-4, gpt-3.5-turbo
+   ```
+
+3. **Or create a `.env` file:**
+   ```
+   USE_OPENAI=True
+   OPENAI_API_KEY=your-api-key-here
+   OPENAI_MODEL=gpt-4o-mini
+   OPENAI_TEMPERATURE=0.7
+   ```
+
+### Option 2: Local Ollama LLM Service
+
+For local/offline usage without API costs:
 
 1. **Start Ollama in Docker:**
    ```bash
@@ -131,7 +158,14 @@ The app integrates with LLM services for generating personalized recommendations
    docker exec -it ollama ollama pull llama3
    ```
 
-This will set up an HTTP endpoint for the LLM at port `11434`, which is used by default in the app configuration.
+3. **Configuration (default):**
+   ```bash
+   export USE_OPENAI=False  # This is the default
+   export LLM_ENDPOINT=http://localhost:11434/api/generate
+   export LLM_MODEL=llama3
+   ```
+
+The system will automatically choose the appropriate API based on the `USE_OPENAI` setting.
 
 ## MCP Architecture Benefits
 

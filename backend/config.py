@@ -42,6 +42,12 @@ LLM_ENDPOINT = os.environ.get("LLM_ENDPOINT", "http://localhost:11434/api/genera
 LLM_MODEL = os.environ.get("LLM_MODEL", "llama3")
 LLM_TEMPERATURE = float(os.environ.get("LLM_TEMPERATURE", 0.3))
 
+# OpenAI Configuration
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
+OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")  # or gpt-3.5-turbo for lower cost
+OPENAI_TEMPERATURE = float(os.environ.get("OPENAI_TEMPERATURE", 0.3))
+USE_OPENAI = os.environ.get("USE_OPENAI", "false").lower() == "true"
+
 # MCP Protocol Configuration
 MCP_PROTOCOL_VERSION = os.environ.get("MCP_PROTOCOL_VERSION", "2025-06-18")
 MCP_RESOURCE_DIR = os.environ.get("MCP_RESOURCE_DIR", os.path.join(os.path.dirname(__file__), "mcp_servers", "resources"))

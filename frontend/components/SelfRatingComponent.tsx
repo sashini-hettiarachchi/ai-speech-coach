@@ -1,5 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { toast } from 'react-hot-toast';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 
 interface CSSEFCriterion {
   id: string;
@@ -79,26 +78,29 @@ const StarRating: React.FC<{
   const starSize = size === 'sm' ? 'w-4 h-4' : size === 'lg' ? 'w-8 h-8' : 'w-6 h-6';
   
   return (
-    <div className="flex items-center space-x-1">
-      {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((star) => (
-        <button
-          key={star}
-          type="button"
-          className={`${starSize} transition-colors duration-150 ${
-            (hoveredRating !== null ? star <= hoveredRating : star <= (rating || 0))
-              ? 'text-yellow-400'
-              : 'text-gray-300'
-          } hover:text-yellow-400`}
-          onMouseEnter={() => setHoveredRating(star)}
-          onMouseLeave={() => setHoveredRating(null)}
-          onClick={() => onRatingChange(star)}
-        >
-          <svg fill="currentColor" viewBox="0 0 20 20">
-            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-          </svg>
-        </button>
-      ))}
-      <span className="ml-2 text-sm text-gray-600 min-w-[3rem]">
+    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+      <div className="flex items-center flex-wrap gap-1">
+        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((star) => (
+          <button
+            key={star}
+            type="button"
+            className={`${starSize} transition-colors duration-150 flex-shrink-0 ${
+              (hoveredRating !== null ? star <= hoveredRating : star <= (rating || 0))
+                ? 'text-yellow-400'
+                : 'text-gray-300'
+            } hover:text-yellow-400 focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:ring-opacity-50 rounded`}
+            onMouseEnter={() => setHoveredRating(star)}
+            onMouseLeave={() => setHoveredRating(null)}
+            onClick={() => onRatingChange(star)}
+            aria-label={`Rate ${star} out of 10`}
+          >
+            <svg fill="currentColor" viewBox="0 0 20 20">
+              <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+            </svg>
+          </button>
+        ))}
+      </div>
+      <span className="text-sm text-gray-600 font-medium min-w-[5rem] sm:ml-3">
         {rating ? `${rating}/10` : 'Not rated'}
       </span>
     </div>
@@ -118,105 +120,137 @@ const SelfRatingComponent: React.FC<SelfRatingComponentProps> = ({
     confidence_level: null
   });
 
-  const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [isInitialized, setIsInitialized] = useState(false);
+  
+  // Use ref to store the latest onChange function to avoid dependency issues
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
 
-  // Initialize form data
+  // Initialize form data - only run once on mount
   useEffect(() => {
+    if (isInitialized) return; // Only initialize once
+    
     // Always initialize with empty ratings for all criteria first
     const emptyRatings: Record<string, RatingData> = {};
     CSSEF_CRITERIA.forEach(criterion => {
       emptyRatings[criterion.id] = { score: null, comment: '' };
     });
     
-    let initialFormData: SelfRatingData = {
+    const initialFormData: SelfRatingData = {
       ratings: emptyRatings,
       overall_comment: '',
       confidence_level: null
     };
     
-    // If initialData is provided, merge it with the empty structure
-    if (initialData) {
-      initialFormData = {
-        ...initialFormData,
-        overall_comment: initialData.overall_comment || '',
-        confidence_level: initialData.confidence_level || null,
-        ratings: { ...emptyRatings } // Start with empty ratings
-      };
-      
-      // Merge only existing ratings from initialData
-      if (initialData.ratings) {
-        Object.keys(initialData.ratings).forEach(criterionId => {
-          if (emptyRatings[criterionId]) {
-            const initialRating = initialData.ratings[criterionId];
-            initialFormData.ratings[criterionId] = {
-              score: initialRating?.score || null,
-              comment: initialRating?.comment || ''
-            };
-          }
-        });
-      }
-    }
-    
     setFormData(initialFormData);
     setIsInitialized(true);
-  }, [initialData]);
-
-  const updateRating = (criterionId: string, field: 'score' | 'comment', value: number | string) => {
+  }, []); // Empty dependency array - only run once on mount
+  
+  // Separate effect to handle initialData updates only when it's meaningful
+  useEffect(() => {
+    if (!isInitialized || !initialData) return;
+    
+    // Only update if initialData has meaningful content (not just empty structure)
+    const hasRatings = initialData.ratings && Object.values(initialData.ratings).some(rating => rating.score !== null);
+    const hasComment = initialData.overall_comment && initialData.overall_comment.trim() !== '';
+    const hasConfidence = initialData.confidence_level !== null;
+    
+    if (!hasRatings && !hasComment && !hasConfidence) {
+      return; // Don't update for empty initialData
+    }
+    
     setFormData(prev => ({
-      ...prev,
+      overall_comment: initialData.overall_comment || prev.overall_comment,
+      confidence_level: initialData.confidence_level ?? prev.confidence_level,
       ratings: {
         ...prev.ratings,
+        ...(initialData.ratings || {})
+      }
+    }));
+  }, [initialData, isInitialized]);
+
+  const updateRating = (criterionId: string, field: 'score' | 'comment', value: number | string) => {
+    const newFormData = {
+      ...formData,
+      ratings: {
+        ...formData.ratings,
         [criterionId]: {
-          ...prev.ratings[criterionId],
+          score: formData.ratings[criterionId]?.score ?? null,
+          comment: formData.ratings[criterionId]?.comment ?? '',
           [field]: value
         }
       }
-    }));
+    };
+    
+    setFormData(newFormData);
+    
+    // Validate and notify parent immediately
+    validateAndNotify(newFormData);
   };
 
   const updateConfidenceLevel = (value: number) => {
-    setFormData(prev => ({
-      ...prev,
+    const newFormData = {
+      ...formData,
       confidence_level: value
-    }));
+    };
+    
+    setFormData(newFormData);
+    
+    // Validate and notify parent immediately
+    validateAndNotify(newFormData);
   };
 
   const updateOverallComment = (value: string) => {
-    setFormData(prev => ({
-      ...prev,
+    const newFormData = {
+      ...formData,
       overall_comment: value
-    }));
+    };
+    
+    setFormData(newFormData);
+    
+    // Validate and notify parent immediately
+    validateAndNotify(newFormData);
   };
 
-  const validateForm = (): boolean => {
+  // Simple validation function that doesn't cause re-renders
+  const validateAndNotify = (data: SelfRatingData) => {
+    if (!isInitialized) return;
+    
     const errors: string[] = [];
     
     // Check if at least 3 criteria have been rated
-    const ratedCriteria = Object.values(formData.ratings).filter(rating => rating.score !== null);
+    const ratedCriteria = Object.values(data.ratings).filter(rating => rating.score !== null);
     if (ratedCriteria.length < 3) {
       errors.push('Please rate at least 3 criteria to continue');
     }
     
     // Check confidence level
-    if (formData.confidence_level === null) {
+    if (data.confidence_level === null) {
       errors.push('Please indicate your confidence level');
     }
     
-    setValidationErrors(errors);
-    return errors.length === 0;
+    // Just log errors for debugging - no state updates
+    if (errors.length > 0) {
+      console.log('Validation errors:', errors);
+    }
+    
+    const isComplete = errors.length === 0;
+    
+    // Call parent onChange
+    onChangeRef.current(data, isComplete);
   };
 
-  // Check if form is complete and notify parent component
-  useEffect(() => {
-    if (!isInitialized) return; // Don't call onChange until initialized
-    
-    const isComplete = validateForm();
-    onChange(formData, isComplete);
-  }, [formData, isInitialized]); // Removed onChange from dependencies
-
   return (
-    <div className="bg-white border border-gray-200 rounded-lg p-6">
+    <div className="relative bg-white border border-gray-200 rounded-lg p-6">
+      {isLoading && (
+        <div className="absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center rounded-lg z-10">
+          <div className="flex items-center space-x-2">
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+            <span className="text-sm text-gray-600">Loading...</span>
+          </div>
+        </div>
+      )}
+      
       <div className="mb-6">
         <h2 className="text-2xl font-bold text-gray-900 mb-2">Rate Your Speech Performance</h2>
         <p className="text-gray-600">
@@ -230,17 +264,6 @@ const SelfRatingComponent: React.FC<SelfRatingComponentProps> = ({
         )}
       </div>
 
-      {validationErrors.length > 0 && (
-        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-          <h4 className="text-red-800 font-medium mb-1">Please fix the following issues:</h4>
-          <ul className="text-red-700 text-sm list-disc list-inside">
-            {validationErrors.map((error, index) => (
-              <li key={index}>{error}</li>
-            ))}
-          </ul>
-        </div>
-      )}
-
       <div className="space-y-6">
         {/* CSSEF Criteria Ratings */}
         <div className="space-y-6">
@@ -249,25 +272,17 @@ const SelfRatingComponent: React.FC<SelfRatingComponentProps> = ({
           </h3>
           
           {CSSEF_CRITERIA.map((criterion) => (
-            <div key={criterion.id} className="border border-gray-200 rounded-lg p-4">
+            <div key={`criterion-${criterion.id}`} className="border border-gray-200 rounded-lg p-4">
               <div className="mb-3">
                 <h4 className="font-medium text-gray-900 mb-1">{criterion.title}</h4>
                 <p className="text-sm text-gray-600">{criterion.description}</p>
               </div>
               
               <div className="mb-3">
-                <div className="flex items-center justify-between">
-                  <StarRating
-                    rating={formData.ratings[criterion.id]?.score ?? null}
-                    onRatingChange={(rating) => updateRating(criterion.id, 'score', rating)}
-                  />
-                  <div className="text-sm text-gray-500 ml-4">
-                    {formData.ratings[criterion.id]?.score ? 
-                      `Score: ${formData.ratings[criterion.id].score}/10` : 
-                      'Not Rated'
-                    }
-                  </div>
-                </div>
+                <StarRating
+                  rating={formData.ratings[criterion.id]?.score ?? null}
+                  onRatingChange={(rating) => updateRating(criterion.id, 'score', rating)}
+                />
               </div>
               
               <div>
@@ -302,21 +317,21 @@ const SelfRatingComponent: React.FC<SelfRatingComponentProps> = ({
 
         {/* Confidence Level */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+          <label className="block text-sm font-medium text-gray-700 mb-3">
             How confident are you in your self-assessment? *
           </label>
-          <div className="flex space-x-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
             {[1, 2, 3, 4, 5].map((level) => (
-              <label key={level} className="flex items-center">
+              <label key={level} className="flex items-center space-x-2 cursor-pointer p-2 rounded-md hover:bg-gray-50 transition-colors">
                 <input
                   type="radio"
                   name="confidence_level"
                   value={level}
                   checked={formData.confidence_level === level}
                   onChange={(e) => updateConfidenceLevel(parseInt(e.target.value))}
-                  className="mr-2"
+                  className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500 focus:ring-2"
                 />
-                <span className="text-sm">
+                <span className="text-sm text-gray-700 leading-tight">
                   {level === 1 && 'Not confident'}
                   {level === 2 && 'Slightly confident'}
                   {level === 3 && 'Moderately confident'}
