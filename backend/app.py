@@ -338,6 +338,25 @@ def health_check():
         return jsonify({"error": f"Health check failed: {str(e)}"}), 500
 
 
+@app.route('/health', methods=['GET'])
+def simple_health_check():
+    """Simple health check for Docker containers"""
+    try:
+        # Test database connection
+        db.session.execute(db.text('SELECT 1'))
+        return jsonify({
+            "status": "healthy",
+            "timestamp": datetime.now().isoformat(),
+            "service": "speech-coach-backend"
+        })
+    except Exception as e:
+        return jsonify({
+            "status": "unhealthy", 
+            "timestamp": datetime.now().isoformat(),
+            "error": str(e)
+        }), 500
+
+
 @app.route('/api/v1/options', methods=['GET'])
 def get_options():
     """Get available options for analysis parameters"""

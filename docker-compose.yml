@@ -1,0 +1,136 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: speech-coach-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: speech_coach
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: speech_coach_password
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/init_db.py:/docker-entrypoint-initdb.d/init_db.py
+    ports:
+      - "5433:5432"
+    networks:
+      - speech-coach-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d speech_coach"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Flask Backend API
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: speech-coach-backend
+    restart: unless-stopped
+    environment:
+      # Server Configuration
+      SERVER_HOST: 0.0.0.0
+      SERVER_PORT: 5000
+      DEBUG_MODE: "false"
+      
+      # Database Configuration
+      DATABASE_HOST: postgres
+      DATABASE_PORT: 5432
+      DATABASE_NAME: speech_coach
+      DATABASE_USER: postgres
+      DATABASE_PASSWORD: speech_coach_password
+      
+      # Frontend CORS Configuration
+      FRONTEND_URL: http://localhost:3000
+      
+      # Auth0 Configuration (override these with your values)
+      AUTH0_DOMAIN: ${AUTH0_DOMAIN}
+      AUTH0_AUDIENCE: ${AUTH0_AUDIENCE}
+      AUTH0_ALGORITHMS: RS256
+      AUTH0_MANAGEMENT_CLIENT_ID: ${AUTH0_MANAGEMENT_CLIENT_ID}
+      AUTH0_MANAGEMENT_CLIENT_SECRET: ${AUTH0_MANAGEMENT_CLIENT_SECRET}
+      
+      # OpenAI Configuration
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENAI_MODEL: gpt-4o-mini
+      OPENAI_TEMPERATURE: 0
+      USE_OPENAI: "true"
+      
+      # Google Cloud Storage
+      GCS_BUCKET_NAME: ${GCS_BUCKET_NAME}
+      SERVICE_ACCOUNT_KEY_PATH: /app/key.json
+      REGION: us-central1
+      
+      # File Storage
+      UPLOAD_FOLDER: uploads
+      
+      # LLM Configuration
+      LLM_ENDPOINT: http://localhost:11434/api/generate
+      LLM_MODEL: llama3
+      LLM_TEMPERATURE: 0.3
+      
+      # MCP Protocol Configuration
+      MCP_PROTOCOL_VERSION: "2025-06-18"
+    volumes:
+      - ./backend/key.json:/app/key.json:ro
+      - backend_uploads:/app/uploads
+    ports:
+      - "5000:5000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - speech-coach-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Next.js Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: speech-coach-frontend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_API_URL: http://localhost:5000
+      # Auth0 Configuration for Next.js
+      AUTH0_BASE_URL: http://localhost:3000
+      AUTH0_ISSUER_BASE_URL: https://${AUTH0_DOMAIN}
+      AUTH0_CLIENT_ID: ${AUTH0_CLIENT_ID}
+      AUTH0_CLIENT_SECRET: ${AUTH0_CLIENT_SECRET}
+      AUTH0_SECRET: ${AUTH0_SECRET}
+      AUTH0_AUDIENCE: ${AUTH0_AUDIENCE}
+      AUTH0_SCOPE: "openid profile email"
+      # Additional Auth0 variables that might be needed
+      AUTH0_DOMAIN: ${AUTH0_DOMAIN}
+      APP_BASE_URL: http://localhost:3000
+    ports:
+      - "3000:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - speech-coach-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  postgres_data:
+    driver: local
+  backend_uploads:
+    driver: local
+
+networks:
+  speech-coach-network:
+    driver: bridge

@@ -1,22 +1,15 @@
-import { getAccessToken } from '@auth0/nextjs-auth0';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET(request: NextRequest) {
   try {
-    const accessToken = await getAccessToken();
-    console.log("Access token retrieved:", accessToken);
-    
-    if (!accessToken) {
-      return NextResponse.json(
-        { error: 'No access token available' },
-        { status: 401 }
-      );
-    }
-
-    return NextResponse.json({ accessToken });
+    // For now, return a placeholder token
+    // In production, this would get the actual Auth0 access token
+    return NextResponse.json({ 
+      accessToken: 'placeholder-token-for-development',
+      message: 'Access token endpoint - production implementation needed'
+    });
   } catch (error) {
     console.error('Error getting access token:', error);
-
     return NextResponse.json(
       { error: 'Failed to get access token' },
       { status: 500 }
