@@ -343,7 +343,9 @@ def simple_health_check():
     """Simple health check for Docker containers"""
     try:
         # Test database connection
+        print("🔍 Performing simple health check...")
         db.session.execute(db.text('SELECT 1'))
+        print("✅ Database connection is healthy.")
         return jsonify({
             "status": "healthy",
             "timestamp": datetime.now().isoformat(),

@@ -16,7 +16,7 @@ DEBUG_MODE = os.environ.get("DEBUG_MODE", "True").lower() == "true"
 
 # Frontend URLs for CORS
 FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:3000")
-CORS_ORIGINS = ["http://localhost:3000", "http://localhost:3001"]
+CORS_ORIGINS = ["http://localhost:3000", "http://localhost:3001", "http://86.50.20.163:3000"]
 CORS_METHODS = ["GET", "POST", "OPTIONS", "PUT", "DELETE", "PATCH"]
 CORS_HEADERS = [
     "Content-Type", 
