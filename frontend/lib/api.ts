@@ -1,6 +1,6 @@
 import axios, { AxiosRequestConfig, AxiosResponse } from 'axios';
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:5000';
+const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://86.50.20.163:5000' || 'http://localhost:5000';
 
 // Client-side authenticated fetch utility using axios
 export const authenticatedFetch = async (
