@@ -1,35 +1,11 @@
-version: '3.8'
-
 services:
-  # PostgreSQL Database
-  postgres:
-    image: postgres:15-alpine
-    container_name: speech-coach-db
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: speech_coach
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: speech_coach_password
-      PGDATA: /var/lib/postgresql/data/pgdata
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./backend/init_db.py:/docker-entrypoint-initdb.d/init_db.py
-    ports:
-      - "5433:5432"
-    networks:
-      - speech-coach-network
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d speech_coach"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
   # Flask Backend API
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: speech-coach-backend
+    image: ai-speech-coach/backend:latest
+    container_name: ai-speech-coach-backend
     restart: unless-stopped
     environment:
       # Server Configuration
@@ -37,36 +13,31 @@ services:
       SERVER_PORT: 5000
       DEBUG_MODE: "false"
       
-      # Database Configuration
-      DATABASE_HOST: postgres
-      DATABASE_PORT: 5432
-      DATABASE_NAME: speech_coach
-      DATABASE_USER: postgres
-      DATABASE_PASSWORD: speech_coach_password
-      
       # Frontend CORS Configuration
       FRONTEND_URL: http://localhost:3000
       
       # Auth0 Configuration (override these with your values)
       AUTH0_DOMAIN: ${AUTH0_DOMAIN}
       AUTH0_AUDIENCE: ${AUTH0_AUDIENCE}
+      AUTH0_SCOPE: ${AUTH0_SCOPE}
       AUTH0_ALGORITHMS: RS256
       AUTH0_MANAGEMENT_CLIENT_ID: ${AUTH0_MANAGEMENT_CLIENT_ID}
       AUTH0_MANAGEMENT_CLIENT_SECRET: ${AUTH0_MANAGEMENT_CLIENT_SECRET}
+
       
       # OpenAI Configuration
       OPENAI_API_KEY: ${OPENAI_API_KEY}
-      OPENAI_MODEL: gpt-4o-mini
-      OPENAI_TEMPERATURE: 0
+      OPENAI_MODEL: ${OPENAI_MODEL}
+      OPENAI_TEMPERATURE: ${OPENAI_TEMPERATURE}
       USE_OPENAI: "true"
-      
+
       # Google Cloud Storage
       GCS_BUCKET_NAME: ${GCS_BUCKET_NAME}
       SERVICE_ACCOUNT_KEY_PATH: /app/key.json
       REGION: us-central1
       
       # File Storage
-      UPLOAD_FOLDER: uploads
+      UPLOAD_FOLDER: /app/uploads
       
       # LLM Configuration
       LLM_ENDPOINT: http://localhost:11434/api/generate
@@ -75,14 +46,14 @@ services:
       
       # MCP Protocol Configuration
       MCP_PROTOCOL_VERSION: "2025-06-18"
+
+      # Database Configuration
+      DATABASE_URL: ${DATABASE_URL}
     volumes:
       - ./backend/key.json:/app/key.json:ro
       - backend_uploads:/app/uploads
     ports:
       - "5000:5000"
-    depends_on:
-      postgres:
-        condition: service_healthy
     networks:
       - speech-coach-network
     healthcheck:
@@ -96,22 +67,20 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: speech-coach-frontend
+    image: ai-speech-coach/frontend:latest
+    container_name: ai-speech-coach-frontend
     restart: unless-stopped
     environment:
       NODE_ENV: production
-      NEXT_PUBLIC_API_URL: http://localhost:5000
+      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL}
       # Auth0 Configuration for Next.js
-      AUTH0_BASE_URL: http://localhost:3000
-      AUTH0_ISSUER_BASE_URL: https://${AUTH0_DOMAIN}
+      APP_BASE_URL: ${APP_BASE_URL}
       AUTH0_CLIENT_ID: ${AUTH0_CLIENT_ID}
       AUTH0_CLIENT_SECRET: ${AUTH0_CLIENT_SECRET}
       AUTH0_SECRET: ${AUTH0_SECRET}
       AUTH0_AUDIENCE: ${AUTH0_AUDIENCE}
-      AUTH0_SCOPE: "openid profile email"
-      # Additional Auth0 variables that might be needed
+      AUTH0_SCOPE: ${AUTH0_SCOPE}
       AUTH0_DOMAIN: ${AUTH0_DOMAIN}
-      APP_BASE_URL: http://localhost:3000
     ports:
       - "3000:3000"
     depends_on:
@@ -124,10 +93,8 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-
+      
 volumes:
-  postgres_data:
-    driver: local
   backend_uploads:
     driver: local
 
