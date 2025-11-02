@@ -125,7 +125,7 @@ class ScorerTool(BaseTool[ScorerToolInput, ScorerToolOutput]):
     
     def __init__(self):
         """Initialize the ScorerTool with context weights from JSON file"""
-        self.weights_path = os.path.join(os.path.dirname(__file__), "context_weights.json")
+        self.weights_path = os.path.join(os.path.dirname(__file__), "../data/context_weights.json")
         self.context_weights = self._load_context_weights()
         self.valid_contexts = list(self.context_weights.keys())
         

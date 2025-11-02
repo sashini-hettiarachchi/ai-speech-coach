@@ -66,48 +66,21 @@ def give_recommendations(transcript, prosody_result=None, filler_analysis=None):
             print("FeedbackGeneratorTool returned None, using fallback")
             return None
             
-        # Convert the tool output to the expected format
+        # Convert the tool output to the expected format using the new simplified schema
         structured_feedback = {
-            "summary": feedback_output.summary,
+            "revised_speech_text": feedback_output.revised_speech_text,
+            "summary": {
+                "strengths": feedback_output.summary.strengths,
+                "improvements": feedback_output.summary.improvements
+            },
             "cssef_evaluation": {
                 criterion: {
                     "score": eval_data.score,
-                    "strengths": eval_data.strengths,
-                    "improvements": eval_data.improvements
+                    "comment": eval_data.comment,
+                    "improvement": eval_data.improvement
                 }
                 for criterion, eval_data in feedback_output.cssef_evaluation.items()
-            },
-            "strengths": [
-                {
-                    "title": strength.title,
-                    "details": strength.details,
-                    "evidence": strength.evidence,
-                    "criterion": strength.criterion
-                }
-                for strength in feedback_output.strengths
-            ],
-            "issues": [
-                {
-                    "title": issue.title,
-                    "details": issue.details,
-                    "evidence": issue.evidence,
-                    "criterion": issue.criterion
-                }
-                for issue in feedback_output.issues
-            ],
-            "suggestions": feedback_output.suggestions,
-            "improved_excerpt": feedback_output.improved_excerpt,
-            "micro_exercises": [
-                {
-                    "title": exercise.title,
-                    "description": exercise.description,
-                    "duration": exercise.duration,
-                    "focus_area": exercise.focus_area
-                }
-                for exercise in feedback_output.micro_exercises
-            ],
-            "motivation": feedback_output.motivation
-            # Note: context_specific_tips are NOT included for general feedback
+            }
         }
         
         return json.dumps(structured_feedback, indent=2)
