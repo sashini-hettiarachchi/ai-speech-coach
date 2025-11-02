@@ -141,13 +141,13 @@ export default function NewSessionPage() {
 
   const resetFile = () => {
     setSelectedFile(null);
-    
+
     // Clean up preview URL
     if (audioPreviewUrl) {
       URL.revokeObjectURL(audioPreviewUrl);
       setAudioPreviewUrl(null);
     }
-    
+
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -191,7 +191,7 @@ export default function NewSessionPage() {
               ← Back to Speech
             </Link>
           </div>
-          
+
           <div className="text-center py-12">
             <div className="bg-green-50 border border-green-200 rounded-lg p-8">
               <div className="flex justify-center mb-4">
@@ -347,7 +347,7 @@ export default function NewSessionPage() {
             )}
 
             {/* Quick Tips */}
-            <div className="bg-amber-50 border border-amber-200 rounded-md p-3">
+            {speech.context && <div className="bg-amber-50 border border-amber-200 rounded-md p-3">
               <h3 className="text-sm font-semibold text-amber-800 mb-2 flex items-center">
                 <svg className="w-4 h-4 mr-2 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
@@ -361,8 +361,9 @@ export default function NewSessionPage() {
                 <li>• Practice with confidence and clarity</li>
                 <li>• Remember the context: <strong>{speech.context}</strong></li>
               </ul>
-            </div>
+            </div>}
           </div>
+
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -393,8 +394,8 @@ export default function NewSessionPage() {
             {!selectedFile ? (
               <div
                 className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${dragOver
-                    ? 'border-black bg-gray-50'
-                    : 'border-gray-300 hover:border-gray-400'
+                  ? 'border-black bg-gray-50'
+                  : 'border-gray-300 hover:border-gray-400'
                   }`}
                 onDrop={handleDrop}
                 onDragOver={handleDragOver}

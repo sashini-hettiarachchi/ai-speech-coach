@@ -223,7 +223,7 @@ def analyze_speech():
                 "words_per_minute": prosody_result.words_per_minute,
                 "transcript":transcript,
                 "filler_analysis":filler_analysis,
-                "prosody_results":prosody_result,
+                "prosody_results":prosody_result.dict(),
                 "speech_title" : speech_title,  # No user-provided title
                 "speech_goal":None,  # No user-provided goal
                 "speech_audience_description":None,  # No user-provided audience description
