@@ -136,10 +136,7 @@ build_all() {
     print_success "🎉 All images built successfully!"
     echo
     print_status "Next steps:"
-    echo "1. Test locally: ./deploy-simple.sh"
-    echo "2. Export for server: $0 export"
-    echo "3. Transfer to server: ./transfer-to-server.sh"
-    echo
+    echo "1. docker compose --env-file .env.production up -d"
 }
 
 # Help function
