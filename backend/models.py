@@ -81,6 +81,10 @@ class Speech(db.Model):
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }
         
+        # Always include session count for UI display
+        session_count = Session.query.filter_by(speech_id=self.id).count()
+        result['session_count'] = session_count
+        
         if include_sessions:
             # Include sessions if requested
             # Note: Need to import Session here to avoid circular imports
