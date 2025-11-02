@@ -10,7 +10,7 @@ from typing import Dict, Any, Optional
 from utils.recommendations import give_recommendations
 
 # Import database models
-from models import db, User, Speech, Session, UserSelfRating
+from models import db, User, Speech, Session, UserSelfRating, PRPSAAssessment
 
 # Import authentication utilities
 from auth0_utils import auth0_required, get_current_user, get_auth0_user_id, AuthError, handle_auth_error
@@ -568,7 +568,7 @@ def delete_speech(speech_id):
 @app.route('/api/v1/speeches/<int:speech_id>/complete', methods=['POST'])
 @auth0_required
 def complete_speech(speech_id):
-    """Mark a speech as completed"""
+    """Mark a speech as completed (requires PRPSA assessment)"""
     try:
         user = get_current_user()
         speech = Speech.query.filter_by(id=speech_id, user_id=user.id).first()
@@ -579,6 +579,13 @@ def complete_speech(speech_id):
         if speech.completed:
             return jsonify({"error": "Speech is already completed"}), 400
         
+        # Check if PRPSA assessment is completed
+        if not speech.prpsa_completed:
+            return jsonify({
+                "error": "PRPSA assessment must be completed before marking speech as complete",
+                "requires_prpsa": True
+            }), 400
+        
         # Mark speech as completed
         speech.completed = True
         speech.updated_at = datetime.utcnow()
@@ -587,6 +594,152 @@ def complete_speech(speech_id):
         return jsonify({
             "status": "success",
             "message": "Speech marked as completed",
+            "speech": speech.to_dict()
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/v1/speeches/<int:speech_id>/prpsa', methods=['POST'])
+@auth0_required
+def submit_prpsa_assessment(speech_id):
+    """Submit PRPSA assessment for a speech"""
+    try:
+        user = get_current_user()
+        speech = Speech.query.filter_by(id=speech_id, user_id=user.id).first()
+        
+        if not speech:
+            return jsonify({"error": "Speech not found"}), 404
+        
+        if speech.completed:
+            return jsonify({"error": "Cannot submit PRPSA for completed speech"}), 400
+        
+        # Check if PRPSA already exists
+        existing_prpsa = PRPSAAssessment.query.filter_by(speech_id=speech_id).first()
+        if existing_prpsa:
+            return jsonify({"error": "PRPSA assessment already completed for this speech"}), 400
+        
+        data = request.get_json()
+        if not data or 'responses' not in data:
+            return jsonify({"error": "Missing PRPSA responses"}), 400
+        
+        responses = data['responses']
+        
+        # Validate that all 34 questions are answered
+        for i in range(1, 35):
+            if f'q{i}' not in responses:
+                return jsonify({"error": f"Missing response for question {i}"}), 400
+            
+            if not isinstance(responses[f'q{i}'], int) or not (1 <= responses[f'q{i}'] <= 5):
+                return jsonify({"error": f"Invalid response for question {i}: must be integer between 1 and 5"}), 400
+        
+        # Create PRPSA assessment
+        try:
+            prpsa = PRPSAAssessment.from_responses(speech_id, responses)
+            db.session.add(prpsa)
+            
+            # Mark speech as PRPSA completed
+            speech.prpsa_completed = True
+            speech.updated_at = datetime.utcnow()
+            
+            db.session.commit()
+            
+            return jsonify({
+                "status": "success",
+                "message": "PRPSA assessment submitted successfully",
+                "prpsa": prpsa.to_dict(),
+                "speech": speech.to_dict()
+            }), 201
+            
+        except ValueError as e:
+            db.session.rollback()
+            return jsonify({"error": str(e)}), 400
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/v1/speeches/<int:speech_id>/prpsa', methods=['GET'])
+@auth0_required
+def get_prpsa_assessment(speech_id):
+    """Get PRPSA assessment for a speech"""
+    try:
+        user = get_current_user()
+        speech = Speech.query.filter_by(id=speech_id, user_id=user.id).first()
+        
+        if not speech:
+            return jsonify({"error": "Speech not found"}), 404
+        
+        prpsa = PRPSAAssessment.query.filter_by(speech_id=speech_id).first()
+        
+        if not prpsa:
+            return jsonify({
+                "status": "success",
+                "prpsa": None,
+                "completed": False
+            })
+        
+        return jsonify({
+            "status": "success",
+            "prpsa": prpsa.to_dict(),
+            "completed": True
+        })
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/v1/speeches/<int:speech_id>/prpsa', methods=['PUT'])
+@auth0_required
+def update_prpsa_assessment(speech_id):
+    """Update PRPSA assessment for a speech (if needed)"""
+    try:
+        user = get_current_user()
+        speech = Speech.query.filter_by(id=speech_id, user_id=user.id).first()
+        
+        if not speech:
+            return jsonify({"error": "Speech not found"}), 404
+        
+        if speech.completed:
+            return jsonify({"error": "Cannot update PRPSA for completed speech"}), 400
+        
+        prpsa = PRPSAAssessment.query.filter_by(speech_id=speech_id).first()
+        if not prpsa:
+            return jsonify({"error": "PRPSA assessment not found"}), 404
+        
+        data = request.get_json()
+        if not data or 'responses' not in data:
+            return jsonify({"error": "Missing PRPSA responses"}), 400
+        
+        responses = data['responses']
+        
+        # Validate responses
+        for i in range(1, 35):
+            if f'q{i}' not in responses:
+                return jsonify({"error": f"Missing response for question {i}"}), 400
+            
+            if not isinstance(responses[f'q{i}'], int) or not (1 <= responses[f'q{i}'] <= 5):
+                return jsonify({"error": f"Invalid response for question {i}: must be integer between 1 and 5"}), 400
+        
+        # Update responses
+        for i in range(1, 35):
+            setattr(prpsa, f'q{i}', responses[f'q{i}'])
+        
+        # Recalculate score
+        total_score, anxiety_level = PRPSAAssessment.calculate_score(responses)
+        prpsa.total_score = total_score
+        prpsa.anxiety_level = anxiety_level
+        prpsa.completed_at = datetime.utcnow()
+        
+        # Update speech timestamp
+        speech.updated_at = datetime.utcnow()
+        
+        db.session.commit()
+        
+        return jsonify({
+            "status": "success",
+            "message": "PRPSA assessment updated successfully",
+            "prpsa": prpsa.to_dict(),
             "speech": speech.to_dict()
         })
         

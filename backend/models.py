@@ -57,6 +57,7 @@ class Speech(db.Model):
     # New fields for speech workflow management
     with_context = db.Column(db.Boolean, nullable=False, default=True)  # Whether speech includes detailed context
     completed = db.Column(db.Boolean, nullable=False, default=False)  # Whether speech practice is completed
+    prpsa_completed = db.Column(db.Boolean, nullable=False, default=False)  # Whether PRPSA assessment is completed
     
     # Legacy fields (for backward compatibility)
     description = db.Column(db.Text)  # Deprecated - use goal instead
@@ -83,6 +84,7 @@ class Speech(db.Model):
             'context': self.context,
             'with_context': self.with_context,
             'completed': self.completed,
+            'prpsa_completed': self.prpsa_completed,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
             'session_count': len(self.sessions),
@@ -401,3 +403,150 @@ class UserSelfRating(db.Model):
             self.overall_comment = data['overall_comment']
         if 'confidence_level' in data:
             self.confidence_level = data['confidence_level']
+
+
+class PRPSAAssessment(db.Model):
+    """
+    Personal Report of Public Speaking Anxiety (PRPSA) Assessment model.
+    Stores responses to the 34-question PRPSA survey and calculated anxiety score.
+    
+    Reference: McCroskey, J. C. (1970). Measures of communication-bound anxiety. 
+    Speech Monographs, 37, 269-277.
+    """
+    __tablename__ = 'prpsa_assessments'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    speech_id = db.Column(db.Integer, db.ForeignKey('speeches.id'), nullable=False, unique=True, index=True)
+    
+    # Individual question responses (1-5 Likert scale)
+    # Strongly Disagree = 1, Disagree = 2, Neutral = 3, Agree = 4, Strongly Agree = 5
+    q1 = db.Column(db.Integer, nullable=False)   # While preparing for giving a speech, I feel tense and nervous
+    q2 = db.Column(db.Integer, nullable=False)   # I feel tense when I see the words "speech" and "public speech" on a course outline
+    q3 = db.Column(db.Integer, nullable=False)   # My thoughts become confused and jumbled when I am giving a speech
+    q4 = db.Column(db.Integer, nullable=False)   # Right after giving a speech I feel that I have had a pleasant experience (REVERSE)
+    q5 = db.Column(db.Integer, nullable=False)   # I get anxious when I think about a speech coming up
+    q6 = db.Column(db.Integer, nullable=False)   # I have no fear of giving a speech (REVERSE)
+    q7 = db.Column(db.Integer, nullable=False)   # Although I am nervous just before starting a speech, I soon settle down (REVERSE)
+    q8 = db.Column(db.Integer, nullable=False)   # I look forward to giving a speech (REVERSE)
+    q9 = db.Column(db.Integer, nullable=False)   # When the instructor announces a speaking assignment in class, I can feel myself getting tense
+    q10 = db.Column(db.Integer, nullable=False)  # My hands tremble when I am giving a speech
+    q11 = db.Column(db.Integer, nullable=False)  # I feel relaxed while giving a speech (REVERSE)
+    q12 = db.Column(db.Integer, nullable=False)  # I enjoy preparing for a speech (REVERSE)
+    q13 = db.Column(db.Integer, nullable=False)  # I am in constant fear of forgetting what I prepared to say
+    q14 = db.Column(db.Integer, nullable=False)  # I get anxious if someone asks me something about my topic that I don't know
+    q15 = db.Column(db.Integer, nullable=False)  # I face the prospect of giving a speech with confidence (REVERSE)
+    q16 = db.Column(db.Integer, nullable=False)  # I feel that I am in complete possession of myself while giving a speech (REVERSE)
+    q17 = db.Column(db.Integer, nullable=False)  # My mind is clear when giving a speech (REVERSE)
+    q18 = db.Column(db.Integer, nullable=False)  # I do not dread giving a speech (REVERSE)
+    q19 = db.Column(db.Integer, nullable=False)  # I perspire just before starting a speech
+    q20 = db.Column(db.Integer, nullable=False)  # My heart beats very fast just as I start a speech
+    q21 = db.Column(db.Integer, nullable=False)  # I experience considerable anxiety while sitting in the room just before my speech starts
+    q22 = db.Column(db.Integer, nullable=False)  # Certain parts of my body feel very tense and rigid while giving a speech
+    q23 = db.Column(db.Integer, nullable=False)  # Realizing that only a little time remains in a speech makes me very tense and anxious
+    q24 = db.Column(db.Integer, nullable=False)  # While giving a speech, I know I can control my feelings of tension and stress (REVERSE)
+    q25 = db.Column(db.Integer, nullable=False)  # I breathe faster just before starting a speech
+    q26 = db.Column(db.Integer, nullable=False)  # I feel comfortable and relaxed in the hour or so just before giving a speech (REVERSE)
+    q27 = db.Column(db.Integer, nullable=False)  # I do poorer on speeches because I am anxious
+    q28 = db.Column(db.Integer, nullable=False)  # I feel anxious when the teacher announces the date of a speaking assignment
+    q29 = db.Column(db.Integer, nullable=False)  # When I make a mistake while giving a speech, I find it hard to concentrate on the parts that follow
+    q30 = db.Column(db.Integer, nullable=False)  # During an important speech I experience a feeling of helplessness building up inside me
+    q31 = db.Column(db.Integer, nullable=False)  # I have trouble falling asleep the night before a speech
+    q32 = db.Column(db.Integer, nullable=False)  # My heart beats very fast while I present a speech
+    q33 = db.Column(db.Integer, nullable=False)  # I feel anxious while waiting to give my speech
+    q34 = db.Column(db.Integer, nullable=False)  # While giving a speech, I get so nervous I forget facts I really know
+    
+    # Calculated fields
+    total_score = db.Column(db.Integer, nullable=False)  # PRPSA score (34-170)
+    anxiety_level = db.Column(db.String(20), nullable=False)  # 'Low', 'Moderate', 'High'
+    
+    # Metadata
+    completed_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Relationship
+    speech = db.relationship('Speech', backref=db.backref('prpsa_assessment', uselist=False))
+    
+    def __repr__(self):
+        return f'<PRPSAAssessment {self.id} for Speech {self.speech_id}>'
+    
+    @classmethod
+    def calculate_score(cls, responses):
+        """
+        Calculate PRPSA score from responses.
+        Formula: PRPSA = 72 - (sum of reverse items) + (sum of regular items)
+        
+        Args:
+            responses: dict with keys q1-q34 and values 1-5
+            
+        Returns:
+            tuple: (total_score, anxiety_level)
+        """
+        # Reverse scored items (these measure lack of anxiety, so higher scores = less anxiety)
+        reverse_items = [4, 6, 7, 8, 11, 12, 15, 16, 17, 18, 24, 26]
+        
+        # Regular scored items (these measure anxiety, so higher scores = more anxiety)
+        regular_items = [1, 2, 3, 5, 9, 10, 13, 14, 19, 20, 21, 22, 23, 25, 27, 28, 29, 30, 31, 32, 33, 34]
+        
+        # Calculate sums
+        reverse_sum = sum(responses[f'q{i}'] for i in reverse_items)
+        regular_sum = sum(responses[f'q{i}'] for i in regular_items)
+        
+        # Apply PRPSA formula
+        total_score = 72 - reverse_sum + regular_sum
+        
+        # Determine anxiety level
+        if total_score < 98:
+            anxiety_level = 'Low'
+        elif total_score <= 131:
+            anxiety_level = 'Moderate'
+        else:
+            anxiety_level = 'High'
+            
+        return total_score, anxiety_level
+    
+    def to_dict(self, include_responses=True):
+        """Convert PRPSA assessment to dictionary"""
+        result = {
+            'id': self.id,
+            'speech_id': self.speech_id,
+            'total_score': self.total_score,
+            'anxiety_level': self.anxiety_level,
+            'completed_at': self.completed_at.isoformat() if self.completed_at else None
+        }
+        
+        if include_responses:
+            result['responses'] = {
+                f'q{i}': getattr(self, f'q{i}') for i in range(1, 35)
+            }
+            
+        return result
+    
+    @classmethod
+    def from_responses(cls, speech_id, responses):
+        """
+        Create PRPSAAssessment from response dictionary
+        
+        Args:
+            speech_id: ID of the associated speech
+            responses: dict with keys q1-q34 and values 1-5
+            
+        Returns:
+            PRPSAAssessment instance
+        """
+        # Validate responses
+        for i in range(1, 35):
+            key = f'q{i}'
+            if key not in responses or not (1 <= responses[key] <= 5):
+                raise ValueError(f"Invalid response for {key}: must be between 1 and 5")
+        
+        # Calculate score and anxiety level
+        total_score, anxiety_level = cls.calculate_score(responses)
+        
+        # Create assessment
+        assessment = cls(
+            speech_id=speech_id,
+            total_score=total_score,
+            anxiety_level=anxiety_level,
+            **{f'q{i}': responses[f'q{i}'] for i in range(1, 35)}
+        )
+        
+        return assessment

@@ -18,6 +18,7 @@ interface Speech {
   self_improvement_goal: string;
   with_context: boolean;
   completed: boolean;
+  prpsa_completed: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -43,6 +44,7 @@ export default function SpeechDetailPage() {
   const [speech, setSpeech] = useState<Speech | null>(null);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showCompletionModal, setShowCompletionModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState({
     title: "",
@@ -68,6 +70,14 @@ export default function SpeechDetailPage() {
       loadSpeechData();
     }
   }, [user, speechId]);
+
+  // Check for showCompletion URL parameter
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('showCompletion') === 'true') {
+      setShowCompletionModal(true);
+    }
+  }, []);
 
   const loadSpeechData = async () => {
     try {
@@ -126,7 +136,13 @@ export default function SpeechDetailPage() {
   };
 
   const handleCompleteSpeech = async () => {
-    if (!confirm("Are you sure you want to mark this speech as completed? Once completed, you won't be able to create new speeches.")) {
+    // Check if PRPSA is completed
+    if (!speech?.prpsa_completed) {
+      setShowCompletionModal(true);
+      return;
+    }
+
+    if (!confirm("Are you sure you want to mark this speech as completed? Once completed, you won't be able to create new sessions.")) {
       return;
     }
 
@@ -134,9 +150,9 @@ export default function SpeechDetailPage() {
       const result = await speechApi.completeSpeech(speechId);
       setSpeech(result.speech);
       toast.success("Speech marked as completed!");
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error completing speech:", error);
-      toast.error("Failed to complete speech");
+      toast.error(error.response?.data?.error || "Failed to complete speech");
     }
   };
 
@@ -281,6 +297,11 @@ export default function SpeechDetailPage() {
                         ✓ Completed
                       </span>
                     )}
+                    {!speech.completed && speech.prpsa_completed && (
+                      <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
+                        ✓ PRPSA Done
+                      </span>
+                    )}
                   </div>
                   <div className="flex items-center space-x-2">
                     {speech.with_context && speech.context && (
@@ -393,7 +414,7 @@ export default function SpeechDetailPage() {
                   onClick={handleCompleteSpeech}
                   className="bg-green-600 text-white px-6 py-3 rounded-md font-medium hover:bg-green-700 transition-colors"
                 >
-                  Mark as Complete
+                  {speech.prpsa_completed ? 'Mark as Complete' : 'Complete Speech (PRPSA Required)'}
                 </button>
               )}
             </>
@@ -496,6 +517,85 @@ export default function SpeechDetailPage() {
             </div>
           )}
         </div>
+
+        {/* PRPSA Completion Modal */}
+        {showCompletionModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                Complete PRPSA Assessment
+              </h3>
+              <div className="mb-6">
+                {speech?.prpsa_completed ? (
+                  <div className="text-green-600 mb-4">
+                    <div className="flex items-center">
+                      <svg className="h-5 w-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                      PRPSA Assessment Completed
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-amber-600 mb-4">
+                    <div className="flex items-center">
+                      <svg className="h-5 w-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                      </svg>
+                      PRPSA Assessment Required
+                    </div>
+                  </div>
+                )}
+                <p className="text-gray-600 mb-4">
+                  {speech?.prpsa_completed 
+                    ? "You have completed the PRPSA assessment and can now proceed to mark this speech as complete."
+                    : "Before marking your speech as complete, you need to complete the Personal Report of Public Speaking Anxiety (PRPSA) assessment. This helps us understand your speaking experience and provide better recommendations."
+                  }
+                </p>
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                  <p className="text-sm text-blue-700">
+                    <strong>About PRPSA:</strong> The Personal Report of Public Speaking Anxiety is a 34-item questionnaire that measures communication apprehension specifically related to public speaking. It's a research-validated tool used to understand speaking anxiety levels.
+                  </p>
+                </div>
+              </div>
+              <div className="flex space-x-3">
+                {speech?.prpsa_completed ? (
+                  <>
+                    <button
+                      onClick={() => {
+                        setShowCompletionModal(false);
+                        handleCompleteSpeech();
+                      }}
+                      className="flex-1 bg-green-600 text-white px-4 py-2 rounded-md font-medium hover:bg-green-700"
+                    >
+                      Complete Speech
+                    </button>
+                    <button
+                      onClick={() => setShowCompletionModal(false)}
+                      className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md font-medium hover:bg-gray-400"
+                    >
+                      Cancel
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <Link
+                      href={`/speeches/${speechId}/prpsa`}
+                      className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-md font-medium hover:bg-blue-700 text-center"
+                    >
+                      Take PRPSA Assessment
+                    </Link>
+                    <button
+                      onClick={() => setShowCompletionModal(false)}
+                      className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md font-medium hover:bg-gray-400"
+                    >
+                      Cancel
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         <Toaster
           position="top-center"

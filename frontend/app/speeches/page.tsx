@@ -15,6 +15,7 @@ interface Speech {
   goal: string;
   with_context: boolean;
   completed: boolean;
+  prpsa_completed: boolean;
   created_at: string;
   updated_at: string;
   session_count?: number;
@@ -180,6 +181,11 @@ export default function SpeechesPage() {
                       {speech.completed && (
                         <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-medium">
                           ✓ Completed
+                        </span>
+                      )}
+                      {!speech.completed && speech.prpsa_completed && (
+                        <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs font-medium">
+                          ✓ PRPSA
                         </span>
                       )}
                     </div>
