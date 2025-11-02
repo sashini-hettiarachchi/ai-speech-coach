@@ -7,7 +7,6 @@ import Link from "next/link";
 import { toast, Toaster } from "react-hot-toast";
 import { speechApi, sessionApi } from "../../../../../lib/api";
 import LoadingDots from "../../../../../components/LoadingDots";
-import SelfRatingComponent from "../../../../../components/SelfRatingComponent";
 
 interface Speech {
   id: string;
@@ -26,7 +25,7 @@ export default function NewSessionPage() {
   const params = useParams();
   const speechId = params.id as string;
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
+
   const [speech, setSpeech] = useState<Speech | null>(null);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
@@ -34,8 +33,6 @@ export default function NewSessionPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [audioPreviewUrl, setAudioPreviewUrl] = useState<string | null>(null);
-  const [selfRatingCompleted, setSelfRatingCompleted] = useState(false);
-  const [selfRatingData, setSelfRatingData] = useState<any>(null);
 
   // Redirect to login if not authenticated
   if (!isLoading && !user) {
@@ -81,18 +78,18 @@ export default function NewSessionPage() {
     }
 
     setSelectedFile(file);
-    
+
     // Create preview URL for audio/video
     const previewUrl = URL.createObjectURL(file);
     setAudioPreviewUrl(previewUrl);
-    
+
     toast.success("File selected successfully!");
   };
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setDragOver(false);
-    
+
     const files = Array.from(e.dataTransfer.files);
     if (files.length > 0) {
       handleFileSelect(files[0]);
@@ -118,33 +115,18 @@ export default function NewSessionPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!selectedFile) {
       toast.error("Please select an audio or video file");
       return;
     }
 
-    if (!selfRatingCompleted) {
-      toast.error("Please complete your self-rating before starting analysis");
-      return;
-    }
-
     setUploading(true);
-    
+
     try {
       // Create session first
       const result = await sessionApi.analyzeAndCreateSession(speechId, selectedFile, sessionTitle.trim() || undefined);
-      
-      // Save self-rating data to the session
-      if (selfRatingData) {
-        try {
-          await sessionApi.saveSelfRating(result.session_id, selfRatingData);
-        } catch (error) {
-          console.error("Error saving self-rating:", error);
-          toast.error("Session created but failed to save self-rating");
-        }
-      }
-      
+
       toast.success("Session created and analysis completed!");
       router.push(`/speeches/${speechId}/sessions/${result.session_id}`);
     } catch (error) {
@@ -155,13 +137,8 @@ export default function NewSessionPage() {
     }
   };
 
-  const handleSelfRatingChange = useCallback((data: any, isComplete: boolean) => {
-    setSelfRatingData(data);
-    setSelfRatingCompleted(isComplete);
-  }, []);  const resetFile = () => {
+  const resetFile = () => {
     setSelectedFile(null);
-    setSelfRatingCompleted(false);
-    setSelfRatingData(null);
     
     // Clean up preview URL
     if (audioPreviewUrl) {
@@ -173,6 +150,7 @@ export default function NewSessionPage() {
       fileInputRef.current.value = '';
     }
   };
+
 
   // Clean up preview URL when component unmounts
   useEffect(() => {
@@ -204,7 +182,7 @@ export default function NewSessionPage() {
       <main className="flex flex-1 w-full flex-col px-4 mt-12 sm:mt-20">
         {/* Navigation */}
         <div className="flex items-center space-x-4 mb-6">
-          <Link 
+          <Link
             href={`/speeches/${speechId}`}
             className="text-blue-600 hover:text-blue-800 font-medium"
           >
@@ -370,14 +348,13 @@ export default function NewSessionPage() {
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Upload Audio or Video *
             </label>
-            
+
             {!selectedFile ? (
               <div
-                className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
-                  dragOver 
-                    ? 'border-black bg-gray-50' 
+                className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${dragOver
+                    ? 'border-black bg-gray-50'
                     : 'border-gray-300 hover:border-gray-400'
-                }`}
+                  }`}
                 onDrop={handleDrop}
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
@@ -388,7 +365,7 @@ export default function NewSessionPage() {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                     </svg>
                   </div>
-                  
+
                   <div>
                     <p className="text-lg font-medium text-gray-900">
                       Drop your file here, or{" "}
@@ -405,7 +382,7 @@ export default function NewSessionPage() {
                     </p>
                   </div>
                 </div>
-                
+
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -460,7 +437,7 @@ export default function NewSessionPage() {
                     <p className="text-sm text-gray-600">{selectedFile.name}</p>
                   </div>
                 </div>
-                
+
                 {selectedFile.type.startsWith('video/') ? (
                   <video
                     controls
@@ -477,7 +454,7 @@ export default function NewSessionPage() {
                     className="w-full"
                     src={audioPreviewUrl}
                     preload="metadata"
-                    style={{ 
+                    style={{
                       filter: 'sepia(0) hue-rotate(200deg) saturate(1.2)',
                       borderRadius: '8px'
                     }}
@@ -485,7 +462,7 @@ export default function NewSessionPage() {
                     Your browser does not support the audio tag.
                   </audio>
                 )}
-                
+
                 <div className="flex items-center justify-between mt-3">
                   <div className="text-xs text-gray-500">
                     💡 Listen to your recording to make sure it's clear and complete
@@ -502,18 +479,6 @@ export default function NewSessionPage() {
             </div>
           )}
 
-          {/* Self-Rating Section - Show only when file is selected */}
-          {selectedFile && (
-            <div className="mt-8">
-              <SelfRatingComponent
-                onChange={handleSelfRatingChange}
-                context={speech?.context}
-                isLoading={false}
-                initialData={selfRatingData}
-              />
-            </div>
-          )}
-
           {/* Submit Button */}
           <div className="pt-4">
             {uploading ? (
@@ -524,20 +489,14 @@ export default function NewSessionPage() {
             ) : (
               <button
                 type="submit"
-                disabled={!selectedFile || !selfRatingCompleted}
-                className={`w-full font-medium py-4 px-4 rounded-md transition-colors ${
-                  selectedFile && selfRatingCompleted
-                    ? 'bg-green-600 text-white hover:bg-green-700'
-                    : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                }`}
+                disabled={!selectedFile}
+                className={`w-full font-medium py-4 px-4 rounded-md transition-colors ${selectedFile ? 'bg-green-600 text-white hover:bg-green-700' : 'bg-gray-300 text-gray-500 cursor-not-allowed'}`}
               >
-                {!selectedFile ? 'Select File First' : 
-                 !selfRatingCompleted ? 'Complete Self-Rating First' : 
-                 '🚀 Start AI Analysis'}
+                {!selectedFile ? 'Select File First' : '🚀 Start AI Analysis'}
               </button>
             )}
-            
-            {selectedFile && !selfRatingCompleted && (
+
+            {selectedFile && (
               <p className="text-sm text-gray-600 text-center mt-2">
                 Please complete your self-rating above to enable the analysis button
               </p>
@@ -552,7 +511,7 @@ export default function NewSessionPage() {
             <li>• Record in a quiet environment with minimal background noise</li>
             <li>• Speak clearly and at a normal pace</li>
             <li>• Keep your recording device at a consistent distance</li>
-            <li>• Aim for recordings between 1-15 minutes for best results</li>
+            <li>• Aim for recordings between 1-5 minutes for best results</li>
           </ul>
         </div>
 
