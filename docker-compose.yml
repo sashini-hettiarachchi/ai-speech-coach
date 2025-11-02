@@ -1,0 +1,103 @@
+services:
+  # Flask Backend API
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    image: ai-speech-coach/backend:latest
+    container_name: ai-speech-coach-backend
+    restart: unless-stopped
+    environment:
+      # Server Configuration
+      SERVER_HOST: 0.0.0.0
+      SERVER_PORT: 5000
+      DEBUG_MODE: "false"
+      
+      # Frontend CORS Configuration
+      FRONTEND_URL: http://localhost:3000
+      
+      # Auth0 Configuration (override these with your values)
+      AUTH0_DOMAIN: ${AUTH0_DOMAIN}
+      AUTH0_AUDIENCE: ${AUTH0_AUDIENCE}
+      AUTH0_SCOPE: ${AUTH0_SCOPE}
+      AUTH0_ALGORITHMS: RS256
+      AUTH0_MANAGEMENT_CLIENT_ID: ${AUTH0_MANAGEMENT_CLIENT_ID}
+      AUTH0_MANAGEMENT_CLIENT_SECRET: ${AUTH0_MANAGEMENT_CLIENT_SECRET}
+
+      
+      # OpenAI Configuration
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENAI_MODEL: ${OPENAI_MODEL}
+      OPENAI_TEMPERATURE: ${OPENAI_TEMPERATURE}
+      USE_OPENAI: "true"
+
+      # Google Cloud Storage
+      GCS_BUCKET_NAME: ${GCS_BUCKET_NAME}
+      SERVICE_ACCOUNT_KEY_PATH: /app/key.json
+      REGION: us-central1
+      
+      # File Storage
+      UPLOAD_FOLDER: /app/uploads
+      
+      # LLM Configuration
+      LLM_ENDPOINT: http://localhost:11434/api/generate
+      LLM_MODEL: llama3
+      LLM_TEMPERATURE: 0.3
+      
+      # MCP Protocol Configuration
+      MCP_PROTOCOL_VERSION: "2025-06-18"
+
+      # Database Configuration
+      DATABASE_URL: ${DATABASE_URL}
+    volumes:
+      - ./backend/key.json:/app/key.json:ro
+      - backend_uploads:/app/uploads
+    ports:
+      - "5000:5000"
+    networks:
+      - speech-coach-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Next.js Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    image: ai-speech-coach/frontend:latest
+    container_name: ai-speech-coach-frontend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL}
+      # Auth0 Configuration for Next.js
+      APP_BASE_URL: ${APP_BASE_URL}
+      AUTH0_CLIENT_ID: ${AUTH0_CLIENT_ID}
+      AUTH0_CLIENT_SECRET: ${AUTH0_CLIENT_SECRET}
+      AUTH0_SECRET: ${AUTH0_SECRET}
+      AUTH0_AUDIENCE: ${AUTH0_AUDIENCE}
+      AUTH0_SCOPE: ${AUTH0_SCOPE}
+      AUTH0_DOMAIN: ${AUTH0_DOMAIN}
+    ports:
+      - "3000:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - speech-coach-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      
+volumes:
+  backend_uploads:
+    driver: local
+
+networks:
+  speech-coach-network:
+    driver: bridge

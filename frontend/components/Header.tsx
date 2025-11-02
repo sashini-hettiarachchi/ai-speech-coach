@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Github from "./GitHub";
-import { useUser } from '@auth0/nextjs-auth0';
+import { useUser } from '@auth0/nextjs-auth0/client';
 
 export default function Header() {
   const { user, isLoading } = useUser();
@@ -31,19 +31,15 @@ export default function Header() {
             <Link href="/profile">
               <button className="bg-gray-100 text-black px-3 py-1 rounded font-medium hover:bg-gray-200 transition">Profile</button>
             </Link>
-            {user ? (
-              <Link href="/auth/logout">
-                <button className="bg-black text-white px-4 py-2 rounded-md font-medium hover:bg-black/80 transition">Logout</button>
-              </Link>
-            ) : (
-              <button className="bg-black text-white px-4 py-2 rounded-md font-medium hover:bg-black/80 transition" disabled>
-                Test Mode
-              </button>
-            )}
+            <Link href="/auth/logout">
+              <button className="bg-black text-white px-4 py-2 rounded-md font-medium hover:bg-black/80 transition">Logout</button>
+            </Link>
           </div>
         ) : (
           <Link href="/auth/login">
-            <button className="bg-black text-white px-4 py-2 rounded-md font-medium hover:bg-black/80 transition">Login</button>
+            <button className="bg-black text-white px-4 py-2 rounded-md font-medium hover:bg-black/80 transition">
+              {isLoading ? 'Loading...' : 'Login'}
+            </button>
           </Link>
         )}
       </div>

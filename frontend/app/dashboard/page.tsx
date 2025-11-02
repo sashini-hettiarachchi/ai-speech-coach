@@ -1,19 +1,23 @@
 "use client";
 
 import Image from "next/image";
-import { useRef, useState, useEffect } from "react";
+import { useRef, useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Toaster, toast } from "react-hot-toast";
 import LoadingDots from "../../components/LoadingDots";
 import { sessionApi, speechApi } from "../../lib/api";
 import ReactMarkdown from "react-markdown";
-import dynamic from "next/dynamic";
+import dynamicImport from "next/dynamic";
 import Link from "next/link";
-import { useUser } from "@auth0/nextjs-auth0";
-const FillerWordsChart = dynamic(() => import("../../components/FillerWordsCharts"), { ssr: false });
-const DeliveryMetricsTable = dynamic(() => import("../../components/DeliveryMetrics"), { ssr: false });
+import { useUser } from "@auth0/nextjs-auth0/client";
 
-export default function Dashboard() {
+// Force dynamic rendering
+export const dynamic = 'force-dynamic';
+
+const FillerWordsChart = dynamicImport(() => import("../../components/FillerWordsCharts"), { ssr: false });
+const DeliveryMetricsTable = dynamicImport(() => import("../../components/DeliveryMetrics"), { ssr: false });
+
+function DashboardContent() {
 	const { user : currentUser, isLoading } = useUser();
 	console.log("user", currentUser)
 	const router = useRouter();
@@ -114,27 +118,18 @@ export default function Dashboard() {
 	return (
 		<div className="flex max-w-6xl mx-auto flex-col py-2 min-h-screen">
 			{/* User Profile Section */}
-			{currentUser && (
+			{false && (
 				<div className="w-full px-4 mt-12 sm:mt-20 mb-8">
 					<div className="bg-white border border-gray-200 rounded-lg p-6 mb-6">
 						<div className="flex items-center space-x-4">
-							{currentUser.picture && (
-								<img
-									src={currentUser.picture}
-									alt="Profile"
-									className="w-16 h-16 rounded-full"
-								/>
-							)}
 							<div>
 								<h2 className="text-2xl font-bold text-gray-900">
-									Welcome back, {currentUser.name || currentUser.email || 'User'}!
+									Welcome back, User!
 								</h2>
-								<p className="text-gray-600">{currentUser.email}</p>
-								{!currentUser && (
-									<p className="text-sm text-orange-600 mt-1">
-										Demo Mode - Auth0 not configured
-									</p>
-								)}
+								<p className="text-gray-600">Demo Mode</p>
+								<p className="text-sm text-orange-600 mt-1">
+									Demo Mode - Auth0 not configured
+								</p>
 							</div>
 						</div>
 						
@@ -302,5 +297,17 @@ export default function Dashboard() {
 				/>
 			</main>
 		</div>
+	);
+}
+
+export default function Dashboard() {
+	return (
+		<Suspense fallback={
+			<div className="flex justify-center items-center min-h-screen">
+				<div className="text-lg">Loading dashboard...</div>
+			</div>
+		}>
+			<DashboardContent />
+		</Suspense>
 	);
 }
