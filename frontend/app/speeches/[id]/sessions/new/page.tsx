@@ -17,6 +17,8 @@ interface Speech {
   key_points: string;
   self_improvement_goal: string;
   context: string;
+  with_context: boolean;
+  completed: boolean;
 }
 
 export default function NewSessionPage() {
@@ -173,6 +175,45 @@ export default function NewSessionPage() {
     return (
       <div className="flex justify-center items-center min-h-screen">
         <div className="text-lg">Speech not found</div>
+      </div>
+    );
+  }
+
+  if (speech.completed) {
+    return (
+      <div className="flex max-w-2xl mx-auto flex-col py-2 min-h-screen">
+        <main className="flex flex-1 w-full flex-col px-4 mt-12 sm:mt-20">
+          <div className="flex items-center space-x-4 mb-6">
+            <Link
+              href={`/speeches/${speechId}`}
+              className="text-blue-600 hover:text-blue-800 font-medium"
+            >
+              ← Back to Speech
+            </Link>
+          </div>
+          
+          <div className="text-center py-12">
+            <div className="bg-green-50 border border-green-200 rounded-lg p-8">
+              <div className="flex justify-center mb-4">
+                <svg className="h-12 w-12 text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-medium text-green-800 mb-2">
+                Speech Completed
+              </h3>
+              <p className="text-green-700 mb-4">
+                This speech has been marked as completed. You cannot create new practice sessions for completed speeches.
+              </p>
+              <Link
+                href={`/speeches/${speechId}`}
+                className="inline-flex items-center bg-green-600 text-white px-4 py-2 rounded-md font-medium hover:bg-green-700 transition-colors"
+              >
+                View Speech Details
+              </Link>
+            </div>
+          </div>
+        </main>
       </div>
     );
   }

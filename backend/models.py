@@ -48,11 +48,15 @@ class Speech(db.Model):
     
     # Speech Information
     title = db.Column(db.String(255), nullable=False)
-    goal = db.Column(db.Text, nullable=False)  # Speech goal/objective
-    audience_description = db.Column(db.Text, nullable=False)  # Target audience description
+    goal = db.Column(db.Text)  # Speech goal/objective (optional when with_context=False)
+    audience_description = db.Column(db.Text)  # Target audience description (optional when with_context=False)
     key_points = db.Column(db.Text)  # Key points or outline (optional)
     self_improvement_goal = db.Column(db.Text)  # Self-improvement goals (optional)
-    context = db.Column(db.String(100), nullable=False)  # academic, persuasive, storytelling, professional
+    context = db.Column(db.String(100))  # academic, persuasive, storytelling, professional (optional when with_context=False)
+    
+    # New fields for speech workflow management
+    with_context = db.Column(db.Boolean, nullable=False, default=True)  # Whether speech includes detailed context
+    completed = db.Column(db.Boolean, nullable=False, default=False)  # Whether speech practice is completed
     
     # Legacy fields (for backward compatibility)
     description = db.Column(db.Text)  # Deprecated - use goal instead
@@ -77,6 +81,8 @@ class Speech(db.Model):
             'key_points': self.key_points,
             'self_improvement_goal': self.self_improvement_goal,
             'context': self.context,
+            'with_context': self.with_context,
+            'completed': self.completed,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
             'session_count': len(self.sessions),

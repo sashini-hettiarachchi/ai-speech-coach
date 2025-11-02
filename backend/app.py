@@ -441,21 +441,31 @@ def create_speech():
         user = get_current_user()
         data = request.get_json()
         
-        # Validate required fields
-        required_fields = ['title', 'goal', 'audience_description', 'context']
-        for field in required_fields:
-            if not data.get(field):
-                return jsonify({"error": f"Missing required field: {field}"}), 400
+        # Title is always required
+        if not data.get('title'):
+            return jsonify({"error": "Missing required field: title"}), 400
+        
+        # Check if this is a context-based speech or generic speech
+        with_context = data.get('with_context', True)
+        
+        if with_context:
+            # For context-based speeches, require additional fields
+            required_fields = ['goal', 'audience_description', 'context']
+            for field in required_fields:
+                if not data.get(field):
+                    return jsonify({"error": f"Missing required field for context-based speech: {field}"}), 400
         
         # Create new speech
         speech = Speech(
             user_id=user.id,
             title=data['title'],
-            goal=data['goal'],
-            audience_description=data['audience_description'],
+            goal=data.get('goal', ''),
+            audience_description=data.get('audience_description', ''),
             key_points=data.get('key_points', ''),
             self_improvement_goal=data.get('self_improvement_goal', ''),
-            context=data['context'],
+            context=data.get('context', ''),
+            with_context=with_context,
+            completed=False,  # Always start as incomplete
             # Legacy field for backward compatibility
             description=data.get('description', data.get('goal', ''))
         )
@@ -549,6 +559,35 @@ def delete_speech(speech_id):
         return jsonify({
             "status": "success",
             "message": "Speech deleted successfully"
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/v1/speeches/<int:speech_id>/complete', methods=['POST'])
+@auth0_required
+def complete_speech(speech_id):
+    """Mark a speech as completed"""
+    try:
+        user = get_current_user()
+        speech = Speech.query.filter_by(id=speech_id, user_id=user.id).first()
+        
+        if not speech:
+            return jsonify({"error": "Speech not found"}), 404
+        
+        if speech.completed:
+            return jsonify({"error": "Speech is already completed"}), 400
+        
+        # Mark speech as completed
+        speech.completed = True
+        speech.updated_at = datetime.utcnow()
+        db.session.commit()
+        
+        return jsonify({
+            "status": "success",
+            "message": "Speech marked as completed",
+            "speech": speech.to_dict()
         })
         
     except Exception as e:
