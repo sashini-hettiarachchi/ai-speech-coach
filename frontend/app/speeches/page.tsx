@@ -13,6 +13,9 @@ interface Speech {
   description: string;
   context: string;
   goal: string;
+  with_context: boolean;
+  completed: boolean;
+  prpsa_completed: boolean;
   created_at: string;
   updated_at: string;
   session_count?: number;
@@ -110,12 +113,12 @@ export default function SpeechesPage() {
               Manage your speeches and practice sessions
             </p>
           </div>
-          <Link
-            href="/speeches/new"
-            className="bg-black text-white px-6 py-3 rounded-md font-medium hover:bg-gray-800 transition-colors"
-          >
-            + New Speech
-          </Link>
+         <Link
+              href="/speeches/new"
+              className="bg-black text-white px-6 py-3 rounded-md font-medium hover:bg-gray-800 transition-colors"
+            >
+              + New Speech
+            </Link>
         </div>
 
         {/* Navigation */}
@@ -164,32 +167,68 @@ export default function SpeechesPage() {
             {speeches.map((speech) => (
               <div
                 key={speech.id}
-                className="bg-white border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow"
+                className={`bg-white border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow ${
+                  speech.completed ? 'ring-2 ring-green-200' : ''
+                }`}
               >
                 {/* Speech Header */}
                 <div className="flex justify-between items-start mb-4">
                   <div className="flex-1">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                      {speech.title}
-                    </h3>
-                    <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${getContextColor(speech.context)}`}>
-                      {speech.context}
-                    </span>
+                    <div className="flex items-center space-x-2 mb-2">
+                      <h3 className="text-lg font-semibold text-gray-900">
+                        {speech.title}
+                      </h3>
+                      {speech.completed && (
+                        <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-medium">
+                          ✓ Completed
+                        </span>
+                      )}
+                      {!speech.completed && speech.prpsa_completed && (
+                        <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs font-medium">
+                          ✓ PRPSA
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      {speech.with_context && speech.context ? (
+                        <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${getContextColor(speech.context)}`}>
+                          {speech.context}
+                        </span>
+                      ) : (
+                        <span className="bg-gray-100 text-gray-800 px-2 py-1 rounded-full text-xs font-medium">
+                          Generic Speech
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
 
-                {/* Speech Description */}
-                <p className="text-gray-600 text-sm mb-4 line-clamp-3">
-                  {speech.description}
-                </p>
+                {/* Speech Content */}
+                {speech.with_context ? (
+                  <>
+                    {speech.description && (
+                      <p className="text-gray-600 text-sm mb-4 line-clamp-3">
+                        {speech.description}
+                      </p>
+                    )}
 
-                {/* Speech Goal */}
-                <div className="mb-4">
-                  <p className="text-xs text-gray-500 mb-1">Goal:</p>
-                  <p className="text-sm text-gray-700 line-clamp-2">
-                    {speech.goal}
-                  </p>
-                </div>
+                    {/* Speech Goal */}
+                    {speech.goal && (
+                      <div className="mb-4">
+                        <p className="text-xs text-gray-500 mb-1">Goal:</p>
+                        <p className="text-sm text-gray-700 line-clamp-2">
+                          {speech.goal}
+                        </p>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="mb-4">
+                    <p className="text-sm text-gray-600 italic">
+                      Generic speech created
+                    </p>
+                  </div>
+                )}
 
                 {/* Stats */}
                 <div className="flex justify-between items-center text-sm text-gray-500 mb-4">

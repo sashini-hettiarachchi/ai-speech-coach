@@ -13,6 +13,12 @@ interface Speech {
   description: string;
   context: string;
   goal: string;
+  audience_description: string;
+  key_points: string;
+  self_improvement_goal: string;
+  with_context: boolean;
+  completed: boolean;
+  prpsa_completed: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -38,6 +44,7 @@ export default function SpeechDetailPage() {
   const [speech, setSpeech] = useState<Speech | null>(null);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showCompletionModal, setShowCompletionModal] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState({
     title: "",
@@ -63,6 +70,14 @@ export default function SpeechDetailPage() {
       loadSpeechData();
     }
   }, [user, speechId]);
+
+  // Check for showCompletion URL parameter
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('showCompletion') === 'true') {
+      setShowCompletionModal(true);
+    }
+  }, []);
 
   const loadSpeechData = async () => {
     try {
@@ -117,6 +132,27 @@ export default function SpeechDetailPage() {
     } catch (error) {
       console.error("Error deleting session:", error);
       toast.error("Failed to delete session");
+    }
+  };
+
+  const handleCompleteSpeech = async () => {
+    // Check if PRPSA is completed
+    if (!speech?.prpsa_completed) {
+      setShowCompletionModal(true);
+      return;
+    }
+
+    if (!confirm("Are you sure you want to mark this speech as completed? Once completed, you won't be able to create new sessions.")) {
+      return;
+    }
+
+    try {
+      const result = await speechApi.completeSpeech(speechId);
+      setSpeech(result.speech);
+      toast.success("Speech marked as completed!");
+    } catch (error: any) {
+      console.error("Error completing speech:", error);
+      toast.error(error.response?.data?.error || "Failed to complete speech");
     }
   };
 
@@ -252,57 +288,155 @@ export default function SpeechDetailPage() {
             <>
               <div className="flex justify-between items-start mb-4">
                 <div>
-                  <h1 className="text-3xl font-bold text-gray-900 mb-2">
-                    {speech.title}
-                  </h1>
-                  <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${getContextColor(speech.context)}`}>
-                    {speech.context}
-                  </span>
+                  <div className="flex items-center space-x-3 mb-2">
+                    <h1 className="text-3xl font-bold text-gray-900">
+                      {speech.title}
+                    </h1>
+                    {speech.completed && (
+                      <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-medium">
+                        ✓ Completed
+                      </span>
+                    )}
+                    {!speech.completed && speech.prpsa_completed && (
+                      <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
+                        ✓ PRPSA Done
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    {speech.with_context && speech.context && (
+                      <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${getContextColor(speech.context)}`}>
+                        {speech.context}
+                      </span>
+                    )}
+                    {!speech.with_context && (
+                      <span className="bg-gray-100 text-gray-800 px-3 py-1 rounded-full text-sm font-medium">
+                        Generic Speech
+                      </span>
+                    )}
+                  </div>
                 </div>
-                <button
-                  onClick={() => setIsEditing(true)}
-                  className="bg-gray-100 text-gray-700 px-4 py-2 rounded-md font-medium hover:bg-gray-200"
-                >
-                  Edit Speech
-                </button>
-              </div>
-              
-              <div className="space-y-4">
-                <div>
-                  <h3 className="text-sm font-medium text-gray-500 mb-1">Description</h3>
-                  <p className="text-gray-900">{speech.description}</p>
-                </div>
-                
-                <div>
-                  <h3 className="text-sm font-medium text-gray-500 mb-1">Goal</h3>
-                  <p className="text-gray-900">{speech.goal}</p>
-                </div>
-                
-                <div className="text-sm text-gray-500">
-                  Created: {formatDate(speech.created_at)}
-                  {speech.updated_at !== speech.created_at && (
-                    <span> • Updated: {formatDate(speech.updated_at)}</span>
+                <div className="flex space-x-2">
+                  {!speech.completed && (
+                    <button
+                      onClick={() => setIsEditing(true)}
+                      className="bg-gray-100 text-gray-700 px-4 py-2 rounded-md font-medium hover:bg-gray-200"
+                    >
+                      Edit Speech
+                    </button>
                   )}
                 </div>
               </div>
+              
+              {speech.with_context ? (
+                <div className="space-y-4">
+                  {speech.goal && (
+                    <div>
+                      <h3 className="text-sm font-medium text-gray-500 mb-1">Goal</h3>
+                      <p className="text-gray-900">{speech.goal}</p>
+                    </div>
+                  )}
+                  
+                  {speech.audience_description && (
+                    <div>
+                      <h3 className="text-sm font-medium text-gray-500 mb-1">Audience</h3>
+                      <p className="text-gray-900">{speech.audience_description}</p>
+                    </div>
+                  )}
+                  
+                  {speech.key_points && (
+                    <div>
+                      <h3 className="text-sm font-medium text-gray-500 mb-1">Key Points</h3>
+                      <p className="text-gray-900 whitespace-pre-line">{speech.key_points}</p>
+                    </div>
+                  )}
+                  
+                  {speech.self_improvement_goal && (
+                    <div>
+                      <h3 className="text-sm font-medium text-gray-500 mb-1">Improvement Goals</h3>
+                      <p className="text-gray-900">{speech.self_improvement_goal}</p>
+                    </div>
+                  )}
+                  
+                  {speech.description && (
+                    <div>
+                      <h3 className="text-sm font-medium text-gray-500 mb-1">Description</h3>
+                      <p className="text-gray-900">{speech.description}</p>
+                    </div>
+                  )}
+                  
+                  <div className="text-sm text-gray-500">
+                    Created: {formatDate(speech.created_at)}
+                    {speech.updated_at !== speech.created_at && (
+                      <span> • Updated: {formatDate(speech.updated_at)}</span>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <h3 className="text-sm font-medium text-blue-900 mb-1">Generic Speech Mode</h3>
+                    <p className="text-sm text-blue-700">
+                      This is a Generic speech created with just a title. You can practice and get feedback without detailed context.
+                    </p>
+                  </div>
+                  
+                  <div className="text-sm text-gray-500">
+                    Created: {formatDate(speech.created_at)}
+                    {speech.updated_at !== speech.created_at && (
+                      <span> • Updated: {formatDate(speech.updated_at)}</span>
+                    )}
+                  </div>
+                </div>
+              )}
             </>
           )}
         </div>
 
         {/* Actions */}
         <div className="flex space-x-4 mb-6">
-          <Link
-            href={`/speeches/${speechId}/sessions/new`}
-            className="bg-black text-white px-6 py-3 rounded-md font-medium hover:bg-gray-800 transition-colors"
-          >
-            + New Session
-          </Link>
-          <Link
-            href={`/dashboard?speechId=${speechId}`}
-            className="bg-gray-600 text-white px-6 py-3 rounded-md font-medium hover:bg-gray-700 transition-colors"
-          >
-            Quick Practice
-          </Link>
+          {!speech.completed ? (
+            <>
+              <Link
+                href={`/speeches/${speechId}/sessions/new`}
+                className="bg-black text-white px-6 py-3 rounded-md font-medium hover:bg-gray-800 transition-colors"
+              >
+                + New Session
+              </Link>
+              <Link
+                href={`/dashboard?speechId=${speechId}`}
+                className="bg-gray-600 text-white px-6 py-3 rounded-md font-medium hover:bg-gray-700 transition-colors"
+              >
+                Quick Practice
+              </Link>
+              {sessions.length > 0 && (
+                <button
+                  onClick={handleCompleteSpeech}
+                  className="bg-green-600 text-white px-6 py-3 rounded-md font-medium hover:bg-green-700 transition-colors"
+                >
+                  {speech.prpsa_completed ? 'Mark as Complete' : 'Complete Speech (PRPSA Required)'}
+                </button>
+              )}
+            </>
+          ) : (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4 w-full">
+              <div className="flex items-center">
+                <div className="flex-shrink-0">
+                  <svg className="h-5 w-5 text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <div className="ml-3">
+                  <h3 className="text-sm font-medium text-green-800">
+                    Speech Completed!
+                  </h3>
+                  <div className="mt-1 text-sm text-green-700">
+                    <p>This speech has been marked as completed. You can review sessions but cannot create new ones.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Sessions List */}
@@ -383,6 +517,85 @@ export default function SpeechDetailPage() {
             </div>
           )}
         </div>
+
+        {/* PRPSA Completion Modal */}
+        {showCompletionModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                Complete PRPSA Assessment
+              </h3>
+              <div className="mb-6">
+                {speech?.prpsa_completed ? (
+                  <div className="text-green-600 mb-4">
+                    <div className="flex items-center">
+                      <svg className="h-5 w-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                      PRPSA Assessment Completed
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-amber-600 mb-4">
+                    <div className="flex items-center">
+                      <svg className="h-5 w-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                      </svg>
+                      PRPSA Assessment Required
+                    </div>
+                  </div>
+                )}
+                <p className="text-gray-600 mb-4">
+                  {speech?.prpsa_completed 
+                    ? "You have completed the PRPSA assessment and can now proceed to mark this speech as complete."
+                    : "Before marking your speech as complete, you need to complete the Personal Report of Public Speaking Anxiety (PRPSA) assessment. This helps us understand your speaking experience and provide better recommendations."
+                  }
+                </p>
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                  <p className="text-sm text-blue-700">
+                    <strong>About PRPSA:</strong> The Personal Report of Public Speaking Anxiety is a 34-item questionnaire that measures communication apprehension specifically related to public speaking. It's a research-validated tool used to understand speaking anxiety levels.
+                  </p>
+                </div>
+              </div>
+              <div className="flex space-x-3">
+                {speech?.prpsa_completed ? (
+                  <>
+                    <button
+                      onClick={() => {
+                        setShowCompletionModal(false);
+                        handleCompleteSpeech();
+                      }}
+                      className="flex-1 bg-green-600 text-white px-4 py-2 rounded-md font-medium hover:bg-green-700"
+                    >
+                      Complete Speech
+                    </button>
+                    <button
+                      onClick={() => setShowCompletionModal(false)}
+                      className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md font-medium hover:bg-gray-400"
+                    >
+                      Cancel
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <Link
+                      href={`/speeches/${speechId}/prpsa`}
+                      className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-md font-medium hover:bg-blue-700 text-center"
+                    >
+                      Take PRPSA Assessment
+                    </Link>
+                    <button
+                      onClick={() => setShowCompletionModal(false)}
+                      className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md font-medium hover:bg-gray-400"
+                    >
+                      Cancel
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         <Toaster
           position="top-center"

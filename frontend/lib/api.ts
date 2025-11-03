@@ -1,6 +1,11 @@
 import axios, { AxiosRequestConfig, AxiosResponse } from 'axios';
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://86.50.20.163:5000' || 'http://localhost:5000';
+let BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
+if(process.env.NODE_ENV !== 'production') {
+  BASE_URL = 'http://localhost:5000'
+}else{
+  BASE_URL = 'http://86.50.20.163:5000'
+}
 
 // Client-side authenticated fetch utility using axios
 export const authenticatedFetch = async (
@@ -92,11 +97,12 @@ export const speechApi = {
   // Create a new speech
   createSpeech: async (speechData: {
     title: string;
-    goal: string;
-    audience_description: string;
+    goal?: string;
+    audience_description?: string;
     key_points?: string;
     self_improvement_goal?: string;
-    context: string;
+    context?: string;
+    with_context?: boolean;
   }): Promise<any> => {
     const response = await authenticatedFetch('/api/v1/speeches', {
       method: 'POST',
@@ -133,6 +139,36 @@ export const speechApi = {
       method: 'DELETE',
     });
     // No return needed for delete operations
+  },
+
+  // Complete a speech
+  completeSpeech: async (speechId: string): Promise<any> => {
+    const response = await authenticatedFetch(`/api/v1/speeches/${speechId}/complete`, {
+      method: 'POST',
+    });
+    return response.data;
+  },
+
+  // PRPSA Assessment methods
+  submitPRPSA: async (speechId: string, responses: Record<string, number>): Promise<any> => {
+    const response = await authenticatedFetch(`/api/v1/speeches/${speechId}/prpsa`, {
+      method: 'POST',
+      data: { responses },
+    });
+    return response.data;
+  },
+
+  getPRPSA: async (speechId: string): Promise<any> => {
+    const response = await authenticatedFetch(`/api/v1/speeches/${speechId}/prpsa`);
+    return response.data;
+  },
+
+  updatePRPSA: async (speechId: string, responses: Record<string, number>): Promise<any> => {
+    const response = await authenticatedFetch(`/api/v1/speeches/${speechId}/prpsa`, {
+      method: 'PUT',
+      data: { responses },
+    });
+    return response.data;
   },
 };
 

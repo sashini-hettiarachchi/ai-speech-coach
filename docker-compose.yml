@@ -52,6 +52,7 @@ services:
     volumes:
       - ./backend/key.json:/app/key.json:ro
       - backend_uploads:/app/uploads
+      - ./backend/data/context_weights.json:/app/data/context_weights.json:ro
     ports:
       - "5000:5000"
     networks:
