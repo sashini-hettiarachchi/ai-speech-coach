@@ -136,7 +136,7 @@ build_all() {
     print_success "🎉 All images built successfully!"
     echo
     print_status "Next steps:"
-    echo "1. docker compose --env-file .env.production down -d"
+    echo "1. docker compose --env-file .env.production down"
     echo "2. docker compose --env-file .env.production up -d"
 }
 
