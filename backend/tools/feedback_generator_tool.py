@@ -12,6 +12,7 @@ import re
 import requests
 from typing import List, Dict, Any, Optional
 from pydantic import BaseModel, Field
+from backend.utils.constants import CONTEXT_DATA
 from tools.base import BaseTool
 
 # Import configuration with fallback
@@ -197,22 +198,9 @@ class FeedbackGeneratorTool(
                 self.use_openai = False
 
         # Load CSSEF competencies and weights from context_weights.json
-        self.context_weights_data = self._load_context_weights()
+        self.context_weights_data = CONTEXT_DATA
 
-    def _load_context_weights(self):
-        """Load context weights from the JSON file"""
-        weights_path = os.path.join(
-            os.path.dirname(__file__), "../data/context_weights.json"
-        )
-        try:
-            with open(weights_path, "r") as f:
-                weights_data = json.load(f)
-            return weights_data
-        except (FileNotFoundError, json.JSONDecodeError) as e:
-            print(
-                f"Warning: Could not load context weights ({str(e)}). Using default weights."
-            )
-            return None
+
 
     # Default CSSEF criteria descriptions (fallback if JSON can't be loaded)
     DEFAULT_CSSEF_CRITERIA = {

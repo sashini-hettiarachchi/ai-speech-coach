@@ -8,6 +8,7 @@ import json
 from datetime import datetime
 from typing import Dict, Any, Optional
 from utils.recommendations import give_recommendations
+from utils.constants import CONTEXT_DATA
 
 # Import database models
 from models import db, Speech, Session, PRPSAAssessment
@@ -255,11 +256,7 @@ def analyze_speech():
             }
 
             revised_speech_text = feedback_result.revised_speech_text
-            context_weights_path = os.path.join(
-                os.path.dirname(__file__), "data", "context_weights.json"
-            )
-            with open(context_weights_path, "r") as f:
-                context_data = json.load(f)
+            context_data = CONTEXT_DATA
 
             # Extract CSSEF scores from feedback generator (1-5 scale)
             cssef_eval = feedback_result.cssef_evaluation

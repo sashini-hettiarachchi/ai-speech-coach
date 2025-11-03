@@ -10,6 +10,7 @@ import os
 import json
 from typing import List, Dict, Any, Optional, Tuple
 from pydantic import BaseModel, Field
+from backend.utils.constants import CONTEXT_DATA
 from tools.base import BaseTool
 
 class ScorerToolInput(BaseModel):
@@ -125,9 +126,7 @@ class ScorerTool(BaseTool[ScorerToolInput, ScorerToolOutput]):
     
     def __init__(self):
         """Initialize the ScorerTool with context weights from JSON file"""
-        self.weights_path = os.path.join(os.path.dirname(__file__), "../data/context_weights.json")
-        self.context_weights = self._load_context_weights()
-        self.valid_contexts = list(self.context_weights.keys())
+        self.context_weights = CONTEXT_DATA["CONTEXT_SCORES"]
         
         # Define the mapping from raw competencies to CSSEF competencies
         self.competency_mapping = {
