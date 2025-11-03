@@ -60,6 +60,10 @@ class Speech(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
+    # Relationships
+    sessions = db.relationship('Session', backref='speech', lazy=True, cascade='all, delete-orphan')
+    prpsa_assessment = db.relationship('PRPSAAssessment', backref='speech', uselist=False, cascade='all, delete-orphan')
+    
     def __repr__(self):
         return f'<Speech {self.id}: {self.title}>'
     
@@ -102,7 +106,7 @@ class Session(db.Model):
     __tablename__ = 'sessions'
     
     id = db.Column(db.Integer, primary_key=True)
-    speech_id = db.Column(db.Integer, db.ForeignKey('speeches.id'), nullable=False, index=True)
+    speech_id = db.Column(db.Integer, db.ForeignKey('speeches.id', ondelete='CASCADE'), nullable=False, index=True)
     
     # Session Information
     session_number = db.Column(db.Integer, nullable=False)  # Session number within the speech (1, 2, 3, etc.)
@@ -328,7 +332,7 @@ class PRPSAAssessment(db.Model):
     __tablename__ = 'prpsa_assessments'
     
     id = db.Column(db.Integer, primary_key=True)
-    speech_id = db.Column(db.Integer, db.ForeignKey('speeches.id'), nullable=False, unique=True, index=True)
+    speech_id = db.Column(db.Integer, db.ForeignKey('speeches.id', ondelete='CASCADE'), nullable=False, unique=True, index=True)
     
     # Individual question responses (1-5 Likert scale)
     # Strongly Disagree = 1, Disagree = 2, Neutral = 3, Agree = 4, Strongly Agree = 5
@@ -373,9 +377,6 @@ class PRPSAAssessment(db.Model):
     
     # Metadata
     completed_at = db.Column(db.DateTime, default=datetime.utcnow)
-    
-    # Relationship
-    speech = db.relationship('Speech', backref=db.backref('prpsa_assessment', uselist=False))
     
     def __repr__(self):
         return f'<PRPSAAssessment {self.id} for Speech {self.speech_id}>'
