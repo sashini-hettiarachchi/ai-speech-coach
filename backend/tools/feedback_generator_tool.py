@@ -12,7 +12,7 @@ import re
 import requests
 from typing import List, Dict, Any, Optional
 from pydantic import BaseModel, Field
-from backend.utils.constants import CONTEXT_DATA
+from utils.constants import CONTEXT_DATA
 from tools.base import BaseTool
 
 # Import configuration with fallback

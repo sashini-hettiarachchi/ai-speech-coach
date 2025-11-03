@@ -10,7 +10,7 @@ import os
 import json
 from typing import List, Dict, Any, Optional, Tuple
 from pydantic import BaseModel, Field
-from backend.utils.constants import CONTEXT_DATA
+from utils.constants import CONTEXT_DATA
 from tools.base import BaseTool
 
 class ScorerToolInput(BaseModel):
