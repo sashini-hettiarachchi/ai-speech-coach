@@ -809,7 +809,7 @@ def update_speech(speech_id):
 @app.route("/api/v1/speeches/<int:speech_id>", methods=["DELETE"])
 @auth0_required
 def delete_speech(speech_id):
-    """Delete a specific speech and all its sessions"""
+    """Delete a specific speech and all its sessions and PRPSA assessment"""
     try:
         user = get_current_user()
         speech = Speech.query.filter_by(id=speech_id, user_id=user.id).first()
@@ -817,10 +817,46 @@ def delete_speech(speech_id):
         if not speech:
             return jsonify({"error": "Speech not found"}), 404
 
+        # Get all sessions for this speech to clean up media files
+        sessions = Session.query.filter_by(speech_id=speech_id).all()
+        
+        # Clean up media files for each session
+        for session in sessions:
+            if session.media_url:
+                try:
+                    # Extract blob name from media URL for cleanup
+                    if 'googleapis.com' in session.media_url:
+                        # Extract blob name from GCS URL
+                        url_parts = session.media_url.split('/')
+                        if len(url_parts) > 4:
+                            blob_name = '/'.join(url_parts[4:]).split('?')[0]  # Remove query parameters
+                            success = delete_speech_file(blob_name)
+                            if not success:
+                                print(f"Warning: Failed to delete media file {blob_name}")
+                except Exception as e:
+                    print(f"Warning: Error deleting media file for session {session.id}: {str(e)}")
+            
+            # Clean up revised speech audio if exists
+            if session.revised_speech_audio_url:
+                try:
+                    if 'googleapis.com' in session.revised_speech_audio_url:
+                        url_parts = session.revised_speech_audio_url.split('/')
+                        if len(url_parts) > 4:
+                            blob_name = '/'.join(url_parts[4:]).split('?')[0]
+                            success = delete_speech_file(blob_name)
+                            if not success:
+                                print(f"Warning: Failed to delete revised speech file {blob_name}")
+                except Exception as e:
+                    print(f"Warning: Error deleting revised speech file for session {session.id}: {str(e)}")
+
+        # Delete the speech (this will cascade delete sessions and PRPSA assessment)
         db.session.delete(speech)
         db.session.commit()
 
-        return jsonify({"status": "success", "message": "Speech deleted successfully"})
+        return jsonify({
+            "status": "success", 
+            "message": "Speech and all related data deleted successfully"
+        })
 
     except Exception as e:
         db.session.rollback()
