@@ -22,6 +22,7 @@ class AudioProsodyToolInput(BaseModel):
     """Input schema for the AudioProsodyTool"""
     file_path: str = Field(..., description="Path to the audio file to analyze")
     transcript: Optional[str] = Field(None, description="Optional transcript for improved analysis")
+    word_timestamps: Optional[List[Dict[str, Any]]] = Field(None, description="Optional word-level timestamps from transcription")
 
 class PauseEvent(BaseModel):
     """Detected pause in speech with categorization"""
@@ -54,6 +55,36 @@ class SpeedEvent(BaseModel):
     relative_change: float = Field(..., description="Relative speed compared to average")
     standard_deviation: float = Field(..., description="Z-score of speed")
 
+class WordProsodyEvent(BaseModel):
+    """Prosody features for a specific word"""
+    word: str = Field(..., description="The transcribed word")
+    start_time: float = Field(..., description="Start time of word in seconds")
+    end_time: float = Field(..., description="End time of word in seconds")
+    
+    # Pause analysis
+    pause_before: Optional[str] = Field(None, description="Type of pause before word: 'brief pause', 'master pause', 'long pause', or None")
+    pause_after: Optional[str] = Field(None, description="Type of pause after word: 'brief pause', 'master pause', 'long pause', or None")
+    pause_before_duration: float = Field(0.0, description="Duration of pause before word in seconds")
+    pause_after_duration: float = Field(0.0, description="Duration of pause after word in seconds")
+    
+    # Volume analysis
+    volume_level: str = Field(..., description="Volume level: 'louder', 'normal', or 'softer'")
+    volume_db: float = Field(..., description="Average volume during word in dB")
+    volume_relative_change: float = Field(..., description="Relative volume compared to speech average")
+    volume_z_score: float = Field(..., description="Z-score of volume")
+    
+    # Pitch analysis
+    pitch_level: str = Field(..., description="Pitch level: 'stress', 'normal', or 'low'")
+    pitch_hz: float = Field(..., description="Average pitch during word in Hz")
+    pitch_relative_change: float = Field(..., description="Relative pitch compared to speech average")
+    pitch_z_score: Optional[float] = Field(None, description="Z-score of pitch")
+    
+    # Speed analysis
+    speed_level: str = Field(..., description="Speed level: 'faster', 'normal', or 'slower'")
+    syllables_per_minute: float = Field(..., description="Estimated syllables per minute for this word")
+    speed_relative_change: float = Field(..., description="Relative speed compared to speech average")
+    speed_z_score: float = Field(..., description="Z-score of speed")
+
 class AudioProsodyToolOutput(BaseModel):
     """Complete analysis results"""
     # Overall statistics
@@ -64,11 +95,14 @@ class AudioProsodyToolOutput(BaseModel):
     volume_mean: float = Field(..., description="Mean volume in dB")
     volume_std: float = Field(..., description="Standard deviation of volume in dB")
     
-    # Detailed events
+    # Detailed events (legacy segment-based analysis)
     pause_events: List[PauseEvent] = Field(default_factory=list, description="Detected pauses")
     volume_events: List[VolumeEvent] = Field(default_factory=list, description="Detected volume variations")
     pitch_events: List[PitchEvent] = Field(default_factory=list, description="Detected pitch stress points")
     speed_events: List[SpeedEvent] = Field(default_factory=list, description="Detected speed variations")
+    
+    # NEW: Word-level prosody analysis
+    word_prosody_events: List[WordProsodyEvent] = Field(default_factory=list, description="Prosody features for each individual word")
     
     def dict(self, **kwargs):
         """Override dict method to ensure proper JSON serialization"""
@@ -82,7 +116,8 @@ class AudioProsodyToolOutput(BaseModel):
             "pause_events": [event.dict() for event in self.pause_events],
             "volume_events": [event.dict() for event in self.volume_events],
             "pitch_events": [event.dict() for event in self.pitch_events],
-            "speed_events": [event.dict() for event in self.speed_events]
+            "speed_events": [event.dict() for event in self.speed_events],
+            "word_prosody_events": [event.dict() for event in self.word_prosody_events]
         }
 
 # ---------- TOOL IMPLEMENTATION ----------
@@ -134,13 +169,14 @@ class AudioProsodyTool(BaseTool[AudioProsodyToolInput, AudioProsodyToolOutput]):
         Analyze the audio file for prosody features.
         
         Args:
-            inputs: Input parameters with file path and optional transcript
+            inputs: Input parameters with file path, optional transcript, and word timestamps
             
         Returns:
-            Complete prosody analysis results
+            Complete prosody analysis results including word-level prosody mapping
         """
         file_path = inputs.file_path
         transcript = inputs.transcript
+        word_timestamps = inputs.word_timestamps
         
         if not os.path.exists(file_path):
             raise FileNotFoundError(f"Audio file not found at {file_path}")
@@ -164,17 +200,25 @@ class AudioProsodyTool(BaseTool[AudioProsodyToolInput, AudioProsodyToolOutput]):
         if volume_mean <= 0: volume_mean = 60
         if volume_std <= 0: volume_std = 5
         
-        # Detect speech segments and pauses
+        # Detect speech segments and pauses (legacy analysis)
         segments = self._detect_speech_segments(sound, intensity)
         pauses = self._detect_pauses(segments, sound.get_total_duration())
         
         # Calculate speaking rate
         wpm, spm = self._calculate_speaking_rate(sound, segments, transcript)
         
-        # Analyze variations within segments
+        # Analyze variations within segments (legacy analysis)
         volume_events = self._analyze_volume_variations(intensity, segments, volume_mean, volume_std)
         pitch_events = self._analyze_pitch_variations(pitch, segments, pitch_mean, pitch_std)
         speed_events = self._analyze_speed_variations(segments, spm)
+        
+        # NEW: Word-level prosody analysis
+        word_prosody_events = []
+        if word_timestamps:
+            word_prosody_events = self._analyze_word_level_prosody(
+                word_timestamps, sound, pitch, intensity, 
+                pitch_mean, pitch_std, volume_mean, volume_std, spm
+            )
         
         return AudioProsodyToolOutput(
             words_per_minute=round(wpm, 1),
@@ -186,7 +230,8 @@ class AudioProsodyTool(BaseTool[AudioProsodyToolInput, AudioProsodyToolOutput]):
             pause_events=pauses,
             volume_events=volume_events,
             pitch_events=pitch_events,
-            speed_events=speed_events
+            speed_events=speed_events,
+            word_prosody_events=word_prosody_events
         )
 
     # ---------- HELPER FUNCTIONS ----------
@@ -573,3 +618,257 @@ class AudioProsodyTool(BaseTool[AudioProsodyToolInput, AudioProsodyToolOutput]):
                 ))
                 
         return speed_events
+
+    # ---------- NEW: WORD-LEVEL PROSODY ANALYSIS METHODS ----------
+    
+    def _analyze_word_level_prosody(self, word_timestamps: List[Dict[str, Any]], sound, pitch, intensity,
+                                  pitch_mean: float, pitch_std: float, volume_mean: float, volume_std: float,
+                                  avg_spm: float) -> List[WordProsodyEvent]:
+        """
+        Analyze prosody features for each individual word.
+        
+        Args:
+            word_timestamps: List of word timestamp dictionaries
+            sound: Praat sound object
+            pitch: Praat pitch object
+            intensity: Praat intensity object
+            pitch_mean: Mean pitch across entire speech
+            pitch_std: Standard deviation of pitch
+            volume_mean: Mean volume across entire speech
+            volume_std: Standard deviation of volume
+            avg_spm: Average syllables per minute
+            
+        Returns:
+            List of word-level prosody events
+        """
+        word_events = []
+        
+        for i, word_data in enumerate(word_timestamps):
+            # Extract word information
+            word_text = word_data.get("word", "").strip()
+            start_time = word_data.get("start", 0.0)
+            end_time = word_data.get("end", 0.0)
+            
+            if not word_text or start_time >= end_time:
+                continue
+                
+            # Analyze pause before and after word
+            pause_before, pause_before_duration = self._analyze_word_pause_before(
+                word_timestamps, i, start_time
+            )
+            pause_after, pause_after_duration = self._analyze_word_pause_after(
+                word_timestamps, i, end_time, sound.get_total_duration()
+            )
+            
+            # Analyze volume for this word
+            volume_level, word_volume, volume_relative, volume_z = self._analyze_word_volume(
+                intensity, start_time, end_time, volume_mean, volume_std
+            )
+            
+            # Analyze pitch for this word
+            pitch_level, word_pitch, pitch_relative, pitch_z = self._analyze_word_pitch(
+                pitch, start_time, end_time, pitch_mean, pitch_std
+            )
+            
+            # Analyze speed for this word
+            speed_level, word_spm, speed_relative, speed_z = self._analyze_word_speed(
+                word_text, start_time, end_time, avg_spm
+            )
+            
+            # Create word prosody event
+            word_event = WordProsodyEvent(
+                word=word_text,
+                start_time=start_time,
+                end_time=end_time,
+                pause_before=pause_before,
+                pause_after=pause_after,
+                pause_before_duration=pause_before_duration,
+                pause_after_duration=pause_after_duration,
+                volume_level=volume_level,
+                volume_db=word_volume,
+                volume_relative_change=volume_relative,
+                volume_z_score=volume_z,
+                pitch_level=pitch_level,
+                pitch_hz=word_pitch,
+                pitch_relative_change=pitch_relative,
+                pitch_z_score=pitch_z,
+                speed_level=speed_level,
+                syllables_per_minute=word_spm,
+                speed_relative_change=speed_relative,
+                speed_z_score=speed_z
+            )
+            
+            word_events.append(word_event)
+            
+        return word_events
+    
+    def _analyze_word_pause_before(self, word_timestamps: List[Dict[str, Any]], word_index: int, 
+                                 word_start: float) -> Tuple[Optional[str], float]:
+        """
+        Analyze pause before a specific word.
+        
+        Args:
+            word_timestamps: List of all word timestamps
+            word_index: Index of current word
+            word_start: Start time of current word
+            
+        Returns:
+            Tuple of (pause_type, pause_duration)
+        """
+        if word_index == 0:
+            # First word - check pause from beginning
+            if word_start >= self.PAUSE_BRIEF_MIN:
+                return self._categorize_pause(word_start), word_start
+            return None, 0.0
+        
+        # Calculate gap between previous word and current word
+        prev_word = word_timestamps[word_index - 1]
+        prev_end = prev_word.get("end", word_start)
+        gap_duration = word_start - prev_end
+        
+        if gap_duration >= self.PAUSE_BRIEF_MIN:
+            return self._categorize_pause(gap_duration), gap_duration
+        
+        return None, gap_duration
+    
+    def _analyze_word_pause_after(self, word_timestamps: List[Dict[str, Any]], word_index: int,
+                                word_end: float, total_duration: float) -> Tuple[Optional[str], float]:
+        """
+        Analyze pause after a specific word.
+        
+        Args:
+            word_timestamps: List of all word timestamps
+            word_index: Index of current word
+            word_end: End time of current word
+            total_duration: Total audio duration
+            
+        Returns:
+            Tuple of (pause_type, pause_duration)
+        """
+        if word_index == len(word_timestamps) - 1:
+            # Last word - check pause to end
+            gap_duration = total_duration - word_end
+            if gap_duration >= self.PAUSE_BRIEF_MIN:
+                return self._categorize_pause(gap_duration), gap_duration
+            return None, gap_duration
+        
+        # Calculate gap between current word and next word
+        next_word = word_timestamps[word_index + 1]
+        next_start = next_word.get("start", word_end)
+        gap_duration = next_start - word_end
+        
+        if gap_duration >= self.PAUSE_BRIEF_MIN:
+            return self._categorize_pause(gap_duration), gap_duration
+        
+        return None, gap_duration
+    
+    def _analyze_word_volume(self, intensity, start_time: float, end_time: float,
+                           volume_mean: float, volume_std: float) -> Tuple[str, float, float, float]:
+        """
+        Analyze volume level for a specific word.
+        
+        Args:
+            intensity: Praat intensity object
+            start_time: Word start time
+            end_time: Word end time
+            volume_mean: Mean volume across speech
+            volume_std: Standard deviation of volume
+            
+        Returns:
+            Tuple of (volume_level, word_volume_db, relative_change, z_score)
+        """
+        # Get mean intensity for this word timespan
+        try:
+            word_volume = call(intensity, "Get mean", start_time, end_time)
+            if word_volume <= -100000:  # Invalid value
+                word_volume = volume_mean
+        except:
+            word_volume = volume_mean
+        
+        # Calculate relative and z-score values
+        relative_change = word_volume / volume_mean if volume_mean > 0 else 1.0
+        z_score = (word_volume - volume_mean) / volume_std if volume_std > 0 else 0.0
+        
+        # Classify based on research thresholds
+        if relative_change > self.VOLUME_LOUDER_RATIO or z_score > self.VOLUME_SD_THRESHOLD:
+            volume_level = "louder"
+        elif relative_change < self.VOLUME_SOFTER_RATIO or z_score < -self.VOLUME_SD_THRESHOLD:
+            volume_level = "softer"
+        else:
+            volume_level = "normal"
+        
+        return volume_level, round(word_volume, 1), round(relative_change, 2), round(z_score, 2)
+    
+    def _analyze_word_pitch(self, pitch, start_time: float, end_time: float,
+                          pitch_mean: float, pitch_std: float) -> Tuple[str, float, float, Optional[float]]:
+        """
+        Analyze pitch level for a specific word.
+        
+        Args:
+            pitch: Praat pitch object
+            start_time: Word start time
+            end_time: Word end time
+            pitch_mean: Mean pitch across speech
+            pitch_std: Standard deviation of pitch
+            
+        Returns:
+            Tuple of (pitch_level, word_pitch_hz, relative_change, z_score)
+        """
+        # Get mean pitch for this word timespan
+        try:
+            word_pitch = call(pitch, "Get mean", start_time, end_time, "Hertz")
+            if word_pitch <= 0:  # Invalid value
+                word_pitch = pitch_mean
+        except:
+            word_pitch = pitch_mean
+        
+        # Calculate relative and z-score values
+        relative_change = word_pitch / pitch_mean if pitch_mean > 0 else 1.0
+        z_score = (word_pitch - pitch_mean) / pitch_std if pitch_std > 0 else 0.0
+        
+        # Classify based on research thresholds
+        if relative_change > self.PITCH_STRESS_RATIO or z_score > self.PITCH_SD_THRESHOLD:
+            pitch_level = "stress"
+        elif relative_change < (1.0 / self.PITCH_STRESS_RATIO) or z_score < -self.PITCH_SD_THRESHOLD:
+            pitch_level = "low"
+        else:
+            pitch_level = "normal"
+        
+        return pitch_level, round(word_pitch, 1), round(relative_change, 2), round(z_score, 2)
+    
+    def _analyze_word_speed(self, word: str, start_time: float, end_time: float,
+                          avg_spm: float) -> Tuple[str, float, float, float]:
+        """
+        Analyze speed level for a specific word.
+        
+        Args:
+            word: The word text
+            start_time: Word start time
+            end_time: Word end time
+            avg_spm: Average syllables per minute across speech
+            
+        Returns:
+            Tuple of (speed_level, word_spm, relative_change, z_score)
+        """
+        # Estimate syllables in this word
+        word_duration = end_time - start_time
+        if word_duration <= 0:
+            return "normal", avg_spm, 1.0, 0.0
+        
+        syllable_count = self._estimate_syllables(word)
+        word_spm = (syllable_count / word_duration) * 60  # syllables per minute
+        
+        # Calculate relative and z-score values
+        relative_change = word_spm / avg_spm if avg_spm > 0 else 1.0
+        # Use a simplified z-score estimation (would need more words for proper std dev)
+        z_score = (relative_change - 1.0) * 2  # Rough approximation
+        
+        # Classify based on research thresholds
+        if relative_change > self.SPEED_FASTER_RATIO or z_score > self.SPEED_SD_THRESHOLD:
+            speed_level = "faster"
+        elif relative_change < self.SPEED_SLOWER_RATIO or z_score < -self.SPEED_SD_THRESHOLD:
+            speed_level = "slower"
+        else:
+            speed_level = "normal"
+        
+        return speed_level, round(word_spm, 1), round(relative_change, 2), round(z_score, 2)

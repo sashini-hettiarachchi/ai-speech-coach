@@ -173,21 +173,36 @@ def analyze_speech():
         transcription_result = tools["transcribe"]({"file_path": temp_filepath})
         transcript = transcription_result.transcript
         segments = transcription_result.segments
+        words = transcription_result.words  # NEW: Extract word-level timestamps
         print("✅ Transcription completed", transcript, segments)
 
-        # Step 2: Analyze audio prosody
+        # Step 2: Analyze audio prosody with word-level timestamps
         print("🎵 Analyzing audio prosody...")
-        prosody_result = tools["audio_prosody"](
-            {"file_path": temp_filepath, "transcript": transcript}
-        )
+        # Prepare word timestamps for prosody analysis
+        word_timestamps_for_prosody = [
+            {
+                "word": word.word,
+                "start": word.start,
+                "end": word.end,
+                "probability": word.probability
+            }
+            for word in words
+        ]
+        
+        prosody_result = tools["audio_prosody"]({
+            "file_path": temp_filepath, 
+            "transcript": transcript,
+            "word_timestamps": word_timestamps_for_prosody  # NEW: Pass word timestamps
+        })
         print("✅ Audio prosody analysis completed")
 
         filler_result = tools["filler_detector"](
-            {"transcript": transcript, "use_llm": True}
+            {"transcript": transcript}
         )
-        filler_analysis = filler_result.dict()
+        
+        filler_analysis = filler_result.model_dump()
         print(
-            f"✅ Detected {filler_result.total_fillers} filler words ({filler_result.filler_percentage:.1f}%), filler_result: {filler_result}"
+            f"✅ Detected {filler_result.total_fillers} filler words ({filler_result.filler_percentage:.1f}%)"
         )
 
         # Step 7: Generate feedback
@@ -496,6 +511,7 @@ def analyze_speech():
                 "transcript": transcript,
                 "revised_speech_text": feedback_result.revised_speech_text,
                 "segments": [segment.dict() for segment in segments],
+                "words": [word.dict() for word in words],  # NEW: Include word-level timestamps
                 "audio_prosody": prosody_result.dict(),
                 # "structure": structure_result.dict(),
                 # "pronunciation": pronunciation_result.dict(),

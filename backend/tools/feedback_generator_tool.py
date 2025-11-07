@@ -3,40 +3,17 @@ FeedbackGeneratorTool: Generates structured feedback based on speech analysis.
 
 This tool creates personalized feedback with strengths, issues, suggestions,
 exercises, and motivational content based on the speaking context and analysis results.
-Uses LLM to generate more personalized and context-aware feedback.
+Uses OpenAI GPT-4o with structured outputs for reliable feedback generation.
 """
 
 import os
-import json
-import re
-import requests
 from typing import List, Dict, Any, Optional
 from pydantic import BaseModel, Field
 from utils.constants import CONTEXT_DATA
 from tools.base import BaseTool
 
-# Import configuration with fallback
-try:
-    from config import (
-        LLM_ENDPOINT,
-        LLM_MODEL,
-        LLM_TEMPERATURE,
-        OPENAI_API_KEY,
-        OPENAI_MODEL,
-        OPENAI_TEMPERATURE,
-        USE_OPENAI,
-    )
-except ImportError:
-    LLM_ENDPOINT = "http://localhost:11434/api/generate"
-    LLM_MODEL = "llama3"
-    LLM_TEMPERATURE = 0.3
-    OPENAI_API_KEY = ""
-    OPENAI_MODEL = "gpt-4o-mini"
-    OPENAI_TEMPERATURE = 0.3
-    USE_OPENAI = False
-
-# Import filler detector
-from utils.filler_detector import count_filler_words
+# Import configuration
+from config import OPENAI_API_KEY, OPENAI_MODEL, OPENAI_TEMPERATURE
 
 
 class FeedbackGeneratorToolInput(BaseModel):
@@ -126,8 +103,8 @@ class LLMFeedbackSchema(BaseModel):
     summary: StructuredFeedbackSummary = Field(
         ..., description="Structured summary with 2 strengths and 2 improvements"
     )
-    cssef_evaluation: Dict[str, CSSEFCompetencyEvaluation] = Field(
-        default_factory=dict, description="Evaluation for each CSSEF competency (C1-C7)"
+    cssef_evaluation: Optional[Dict[str, CSSEFCompetencyEvaluation]] = Field(
+        None, description="Evaluation for each CSSEF competency (C1-C7)"
     )
 
 
@@ -138,8 +115,8 @@ class FeedbackGeneratorToolOutput(BaseModel):
     summary: StructuredFeedbackSummary = Field(
         ..., description="Structured summary with 2 strengths and 2 improvements"
     )
-    cssef_evaluation: Dict[str, CSSEFCompetencyEvaluation] = Field(
-        default_factory=dict,
+    cssef_evaluation: Optional[Dict[str, CSSEFCompetencyEvaluation]] = Field(
+        None,
         description="Evaluation for each CSSEF competency (C1-C7) with score, comment, and improvement",
     )
 
@@ -169,33 +146,16 @@ class FeedbackGeneratorTool(
     OutputSchema = FeedbackGeneratorToolOutput
 
     def __init__(self):
-        """Initialize the FeedbackGeneratorTool with LLM config and context weights"""
-        self.llm_endpoint = LLM_ENDPOINT
-        self.llm_model = LLM_MODEL
-        self.llm_temperature = LLM_TEMPERATURE
-
-        # OpenAI configuration
-        self.use_openai = USE_OPENAI
-        self.openai_api_key = OPENAI_API_KEY
-        self.openai_model = OPENAI_MODEL
-        self.openai_temperature = OPENAI_TEMPERATURE
-
-        # Initialize OpenAI client if needed
-        self.openai_client = None
-        if self.use_openai and self.openai_api_key:
-            try:
-                from openai import OpenAI
-
-                self.openai_client = OpenAI(api_key=self.openai_api_key)
-                print("OpenAI client initialized successfully")
-            except ImportError:
-                print(
-                    "Warning: OpenAI library not installed. Install with: pip install openai"
-                )
-                self.use_openai = False
-            except Exception as e:
-                print(f"Warning: Failed to initialize OpenAI client: {e}")
-                self.use_openai = False
+        """Initialize the FeedbackGeneratorTool with OpenAI client"""
+        try:
+            from openai import OpenAI
+            self.openai_client = OpenAI(api_key=OPENAI_API_KEY)
+            self.openai_model = OPENAI_MODEL
+            self.openai_temperature = OPENAI_TEMPERATURE
+            print("OpenAI client initialized successfully for feedback generation")
+        except Exception as e:
+            print(f"Warning: Failed to initialize OpenAI client: {e}")
+            self.openai_client = None
 
         # Load CSSEF competencies and weights from context_weights.json
         self.context_weights_data = CONTEXT_DATA
@@ -304,7 +264,7 @@ class FeedbackGeneratorTool(
 
             # Process CSSEF evaluation
             cssef_evaluation = {}
-            if "cssef_evaluation" in llm_feedback:
+            if "cssef_evaluation" in llm_feedback and llm_feedback["cssef_evaluation"]:
                 for criterion, eval_data in llm_feedback["cssef_evaluation"].items():
                     if isinstance(eval_data, dict):
                         try:
@@ -337,7 +297,7 @@ class FeedbackGeneratorTool(
             return FeedbackGeneratorToolOutput(
                 revised_speech_text=revised_speech_text,
                 summary=summary,
-                cssef_evaluation=cssef_evaluation,
+                cssef_evaluation=cssef_evaluation or None,
             )
 
         except Exception as e:
@@ -515,131 +475,56 @@ Example good comment for C3 (Supporting Material, Persuasive):
 
         print("prompt", prompt)
 
-        # Choose between OpenAI and Ollama based on configuration
-        if self.use_openai and self.openai_client:
+        # Use OpenAI for feedback generation
+        if self.openai_client:
             return self._call_openai_api(prompt)
         else:
-            return self._call_ollama_api(prompt)
+            print("OpenAI client not available")
+            return None
 
     def _call_openai_api(self, prompt: str) -> Dict:
-        """Call OpenAI API for feedback generation"""
+        """Call OpenAI API for feedback generation using structured outputs"""
         try:
-            response = self.openai_client.chat.completions.create(
+            response = self.openai_client.beta.chat.completions.parse(
                 model=self.openai_model,
                 messages=[
                     {
                         "role": "system",
-                        "content": "You are an expert public speaking coach. Respond only in valid JSON format according to the provided schema.",
+                        "content": "You are an expert public speaking coach. Provide detailed feedback based on CSSEF criteria.",
                     },
                     {"role": "user", "content": prompt},
                 ],
+                response_format=LLMFeedbackSchema,
                 temperature=self.openai_temperature,
-                response_format={"type": "json_object"},
             )
 
-            llm_response = response.choices[0].message.content
-            print("OpenAI response:", llm_response)
-
-            # Parse and validate the response
-            feedback_data = LLMFeedbackSchema.model_validate_json(llm_response)
+            feedback_data = response.choices[0].message.parsed
             llm_feedback = feedback_data.model_dump()
-            print("Successfully validated OpenAI response with Pydantic")
+            print("Successfully generated OpenAI feedback with structured outputs")
             return llm_feedback
 
         except Exception as e:
             print(f"Error calling OpenAI API: {e}")
             return self._get_fallback_feedback()
 
-    def _call_ollama_api(self, prompt: str) -> Dict:
-        """Call Ollama API for feedback generation"""
-        headers = {"Content-Type": "application/json"}
-        data = {
-            "model": self.llm_model,
-            "prompt": prompt,
-            "temperature": self.llm_temperature,
-            "stream": False,
-            "format": LLMFeedbackSchema.model_json_schema(),
-        }
-
-        try:
-            response = requests.post(self.llm_endpoint, headers=headers, json=data)
-            response.raise_for_status()
-            result = response.json()
-            llm_response = result.get("response", "")
-
-            # Parse the LLM response using Pydantic model
-            # Handle both dictionary and string responses from Ollama
-            try:
-                if isinstance(llm_response, dict):
-                    # Response is already a dictionary - validate with Pydantic
-                    feedback_data = LLMFeedbackSchema.model_validate(llm_response)
-                    print("Successfully validated dictionary response with Pydantic")
-                elif isinstance(llm_response, str):
-                    # Response is a string - parse as JSON then validate
-                    feedback_data = LLMFeedbackSchema.model_validate_json(llm_response)
-                    print("Successfully validated string response with Pydantic")
-                else:
-                    raise ValueError(f"Unexpected response type: {type(llm_response)}")
-
-                # Convert to dictionary for further processing
-                llm_feedback = feedback_data.model_dump()
-                print("Validated LLM response:", llm_feedback)
-                return llm_feedback
-
-            except (ValueError, TypeError) as e:
-                print(f"Failed to validate LLM response: {e}")
-                # Try to extract JSON from code blocks if needed
-                if isinstance(llm_response, str):
-                    # Try to find JSON content between code blocks
-                    json_match = re.search(
-                        r"```(?:json)?(.*?)```", llm_response, re.DOTALL
-                    )
-                    if json_match:
-                        try:
-                            json_str = json_match.group(1).strip()
-                            feedback_data = LLMFeedbackSchema.model_validate_json(
-                                json_str
-                            )
-                            llm_feedback = feedback_data.model_dump()
-                            print(
-                                "Successfully validated JSON from code block with Pydantic"
-                            )
-                            return llm_feedback
-                        except Exception as e:
-                            print(f"Failed to parse JSON from code block: {e}")
-
-                # Create a basic feedback structure if all parsing attempts fail
-                print("Using fallback feedback structure")
-                return {
-                    "summary": "The speaker's presentation needs improvement in several areas.",
-                    "cssef_evaluation": {},
-                    "strengths": [],
-                    "issues": [],
-                    "suggestions": [
-                        "Practice more regularly",
-                        "Focus on clear topic definition",
-                    ],
-                    "improved_excerpt": None,
-                    "exercises": [],
-                    "motivation": "Keep practicing to improve your speaking skills!",
-                }
-
-        except (requests.RequestException, KeyError) as e:
-            print(f"Error calling LLM API: {e}")
-            return None
-
     def _get_fallback_feedback(self) -> Dict:
         """Return a basic feedback structure when API calls fail"""
         return {
-            "summary": "The speaker's presentation needs improvement in several areas.",
-            "cssef_evaluation": {},
-            "strengths": [],
-            "issues": [],
-            "suggestions": [
-                "Practice more regularly",
-                "Focus on clear topic definition",
-            ],
-            "improved_excerpt": None,
-            "exercises": [],
-            "motivation": "Keep practicing to improve your speaking skills!",
+            "revised_speech_text": "Keep practicing to improve your speech delivery.",
+            "summary": {
+                "strengths": ["Good effort in presenting"],
+                "improvements": ["Practice more regularly", "Focus on clear delivery"]
+            },
+            "cssef_evaluation": {
+                "C1_topic_choice": {
+                    "score": 3.0,
+                    "comment": "Topic was appropriate",
+                    "improvement": "Consider narrowing focus for better impact"
+                },
+                "C2_purpose": {
+                    "score": 3.0,
+                    "comment": "Purpose was communicated",
+                    "improvement": "Make purpose statement clearer"
+                }
+            }
         }
