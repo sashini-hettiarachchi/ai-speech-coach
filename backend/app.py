@@ -7,7 +7,6 @@ import traceback
 import json
 from datetime import datetime
 from typing import Dict, Any, Optional
-from utils.recommendations import give_recommendations
 from utils.constants import CONTEXT_DATA
 
 # Import database models
@@ -41,14 +40,7 @@ from config import (
 # Import MCP Tools
 from tools.transcribe_tool import TranscribeTool
 from tools.audio_prosody_tool import AudioProsodyTool
-from tools.nlp_structure_tool import NLPStructureTool
-from tools.pronunciation_tool import PronunciationTool
-from tools.video_pose_tool import VideoPoseTool
 from tools.filler_detector_tool import FillerDetectorTool
-from tools.feedback_generator_tool import (
-    FeedbackGeneratorTool,
-    FeedbackGeneratorToolInput,
-)
 
 # Import new CSSEF evaluation tools
 from tools.cssef_c1_topic_choice_tool import CSSEFIC1Tool
@@ -60,6 +52,7 @@ from tools.cssef_c6_vocal_variety_tool import CSSEFIC6Tool
 from tools.cssef_c7_pronunciation_tool import CSSEFIC7Tool
 from tools.speech_revision_tool import SpeechRevisionTool
 from tools.overall_score_tool import OverallScoreTool
+from tools.feedback_summary_tool import FeedbackSummaryTool
 
 # Import utilities for backward compatibility
 from utils.filler_detector import count_filler_words
@@ -134,7 +127,6 @@ def analyze_speech():
         speech_goal = speech.goal
         speech_audience_description = speech.audience_description
         speech_key_points = speech.key_points
-        speech_self_improvement_goal = speech.self_improvement_goal
 
         print(
             f"🎯 Analysis request - User: {auth0_user_id}, Speech: {speech.title}, Context: {context_label}"
@@ -165,10 +157,7 @@ def analyze_speech():
         tools = {
             "transcribe": TranscribeTool(model_size="tiny"),
             "audio_prosody": AudioProsodyTool(),
-            "nlp_structure": NLPStructureTool(),
-            "pronunciation": PronunciationTool(),
             "filler_detector": FillerDetectorTool(),
-            "feedback_generator": FeedbackGeneratorTool(),
             # New CSSEF evaluation tools
             "cssef_c1": CSSEFIC1Tool(),
             "cssef_c2": CSSEFIC2Tool(),
@@ -179,13 +168,11 @@ def analyze_speech():
             "cssef_c7": CSSEFIC7Tool(),
             "speech_revision": SpeechRevisionTool(),
             "overall_score": OverallScoreTool(),
+            "feedback_summary": FeedbackSummaryTool(),
         }
 
         # Check if the file is a video
         _, ext = os.path.splitext(temp_filepath)
-        is_video = ext.lower() in [".mp4", ".avi", ".mov", ".mkv", ".webm"]
-        if is_video:
-            tools["video_pose"] = VideoPoseTool()
 
         # Step 1: Transcribe audio
         print("🗣️ Starting transcription...")
@@ -344,17 +331,32 @@ def analyze_speech():
         
         print("✅ All CSSEF competency evaluations completed")
         
-        # Step 10: Calculate Overall Score and Generate Summary
-        print("📊 Calculating overall score and generating summary...")
+        # Step 10: Calculate Overall Score
+        print("📊 Calculating overall score...")
         overall_result = tools["overall_score"]({
             "cssef_scores": cssef_scores,
+            "context": context_label
+        })
+        
+        # Step 11: Generate Feedback Summary
+        print("📝 Generating AI-powered feedback summary...")
+        feedback_result = tools["feedback_summary"]({
+            "cssef_scores": cssef_scores,
+            "overall_score": overall_result.overall_score,
             "context": context_label,
             "speech_duration": speech_duration,
             "words_per_minute": prosody_result.words_per_minute,
-            "filler_percentage": filler_result.filler_percentage
+            "filler_percentage": filler_result.filler_percentage,
+            "transcript": transcript,
+            "speech_title": speech_title,
+            "speech_goal": speech_goal
         })
         
-        # Step 11: Generate Revised Speech
+        # Extract results for database storage
+        overall_score = overall_result.overall_score
+        feedback_summary = feedback_result.feedback_summary.model_dump()  # Convert Pydantic model to dict
+        
+        # Step 12: Generate Revised Speech
         print("✨ Generating revised speech text and audio...")
         
         # Calculate session number for file naming
@@ -374,9 +376,7 @@ def analyze_speech():
         
         print("✅ Speech revision completed")
         
-        # Extract results for database storage
-        overall_score = overall_result.overall_score
-        feedback_summary = overall_result.feedback_summary
+        # Extract revised speech text from revision result
         revised_speech_text = revision_result.revised_text
 
         # Save session to database
@@ -434,7 +434,7 @@ def analyze_speech():
                 session_number=session_number,
                 title=session_title,
                 media_url=gcs_signed_url,
-                media_type="video" if is_video else "audio",
+                media_type="audio",
                 original_filename=filename,
                 transcript=transcript,
                 feedback="CSSEF evaluation completed with individual competency analysis",
@@ -490,41 +490,21 @@ def analyze_speech():
 
         except Exception as db_error:
             print(f"⚠️ Database save error: {str(db_error)}")
+            print(f"🔍 Error traceback: {traceback.format_exc()}")
             db.session.rollback()
-            # Continue without failing the request
+            # Set session to None so we know it failed
+            session = None
 
         # Prepare response
         response = {
             "status": "success",
             "timestamp": datetime.now().isoformat(),
-            "request": {
-                "user_id": auth0_user_id,
-                "speech_id": speech.id,
-                "speech_title": speech.title,
-                "context_label": context_label,
-                "file_name": filename,
-            },
-            "analysis": {
-                "transcript": transcript,
-                "revised_speech_text": revised_speech_text,
-                "revised_speech_audio_url": revision_result.audio_gcs_url,
-                "segments": [segment.dict() for segment in segments],
-                "words": [word.dict() for word in words],
-                "audio_prosody": prosody_result.dict(),
-                "filler_analysis": filler_analysis,
-                "cssef_evaluation": cssef_scores,
-                "overall_score": overall_score,
-                "feedback_summary": feedback_summary,
-            },
+
         }
 
         # Add session ID if successfully saved
-        if "session" in locals():
+        if "session" in locals() and session is not None and hasattr(session, 'id'):
             response["session_id"] = session.id
-
-        # Add video analysis if available
-        # if video_result:
-        #     response["analysis"]["video"] = video_result.dict()
 
         # Clean up temporary uploaded file
         try:
@@ -559,11 +539,7 @@ def health_check():
         tools = {
             "transcribe": TranscribeTool(model_size="tiny"),
             "audio_prosody": AudioProsodyTool(),
-            "nlp_structure": NLPStructureTool(),
-            "pronunciation": PronunciationTool(),
-            "video_pose": VideoPoseTool(),
             "filler_detector": FillerDetectorTool(),
-            "feedback_generator": FeedbackGeneratorTool(),
             # New CSSEF evaluation tools
             "cssef_c1": CSSEFIC1Tool(),
             "cssef_c2": CSSEFIC2Tool(),
@@ -574,6 +550,7 @@ def health_check():
             "cssef_c7": CSSEFIC7Tool(),
             "speech_revision": SpeechRevisionTool(),
             "overall_score": OverallScoreTool(),
+            "feedback_summary": FeedbackSummaryTool(),
         }
 
         # Check each tool and collect statuses
@@ -652,7 +629,6 @@ def get_options():
             "pronunciation_tool",
             "video_pose_tool",
             "filler_detector_tool",
-            "feedback_generator_tool",
             "cssef_c1_topic_choice_tool",
             "cssef_c2_purpose_tool",
             "cssef_c3_supporting_material_tool",
@@ -662,6 +638,7 @@ def get_options():
             "cssef_c7_pronunciation_tool",
             "speech_revision_tool",
             "overall_score_tool",
+            "feedback_summary_tool",
         ],
     }
 

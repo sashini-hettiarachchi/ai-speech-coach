@@ -35,6 +35,65 @@ interface Session {
   created_at: string;
 }
 
+// Helper functions for session data processing
+const getOverallScore = (scores: any) => {
+  if (!scores || typeof scores !== 'object') return null;
+  
+  // Check for overall_score field
+  if (scores.overall_score !== undefined) {
+    return Math.round(scores.overall_score);
+  }
+  
+  // Calculate from individual scores if available
+  const scoreValues = Object.values(scores).filter((score): score is number => 
+    typeof score === 'number' && score >= 0 && score <= 100
+  );
+  
+  if (scoreValues.length > 0) {
+    const average = scoreValues.reduce((sum: number, score: number) => sum + score, 0) / scoreValues.length;
+    return Math.round(average);
+  }
+  
+  return null;
+};
+
+const getFeedbackSummary = (feedback: any) => {
+  if (!feedback) return null;
+  
+  // If feedback is a string, return first 100 characters
+  if (typeof feedback === 'string') {
+    return feedback.length > 100 ? feedback.substring(0, 100) + '...' : feedback;
+  }
+  
+  // If feedback is an object, look for summary field
+  if (typeof feedback === 'object') {
+    if (feedback.summary) {
+      const summary = feedback.summary;
+      return summary.length > 100 ? summary.substring(0, 100) + '...' : summary;
+    }
+    
+    // Look for other possible summary fields
+    if (feedback.overall_feedback) {
+      const summary = feedback.overall_feedback;
+      return summary.length > 100 ? summary.substring(0, 100) + '...' : summary;
+    }
+    
+    if (feedback.general_feedback) {
+      const summary = feedback.general_feedback;
+      return summary.length > 100 ? summary.substring(0, 100) + '...' : summary;
+    }
+  }
+  
+  return null;
+};
+
+const getScoreColor = (score: number) => {
+  if (score >= 80) return 'text-green-600 bg-green-100';
+  if (score >= 60) return 'text-yellow-600 bg-yellow-100';
+  if (score >= 40) return 'text-orange-600 bg-orange-100';
+  return 'text-red-600 bg-red-100';
+};
+
 export default function SpeechDetailPage() {
   const { user, isLoading } = useUser();
   const router = useRouter();
@@ -196,132 +255,160 @@ export default function SpeechDetailPage() {
   }
 
   return (
-    <div className="flex max-w-4xl mx-auto flex-col py-2 min-h-screen">
+    <div className="flex max-w-6xl mx-auto flex-col py-2 min-h-screen bg-gray-50">
       <main className="flex flex-1 w-full flex-col px-4 mt-12 sm:mt-20">
         {/* Navigation */}
-        <div className="flex items-center space-x-4 mb-6">
+        <div className="flex items-center space-x-4 mb-8">
           <Link 
             href="/speeches" 
-            className="text-blue-600 hover:text-blue-800 font-medium"
+            className="inline-flex items-center text-blue-600 hover:text-blue-800 font-medium transition-colors duration-200"
           >
-            ← Back to Speeches
+            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+            Back to Speeches
           </Link>
         </div>
 
         {/* Speech Details */}
-        <div className="bg-white border border-gray-200 rounded-lg p-6 mb-6">
+        <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-8 mb-8">
           {isEditing ? (
-            <form onSubmit={handleEditSubmit} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Title
-                </label>
-                <input
-                  type="text"
-                  value={editForm.title}
-                  onChange={(e) => setEditForm(prev => ({ ...prev, title: e.target.value }))}
-                  className="w-full rounded-md border-gray-300 shadow-sm focus:border-black focus:ring-black px-3 py-2"
-                  required
-                />
+            <div className="space-y-6">
+              <div className="border-b border-gray-200 pb-4 mb-6">
+                <h2 className="text-2xl font-bold text-gray-900">Edit Speech</h2>
+                <p className="text-gray-600 mt-1">Update your speech details and preferences</p>
               </div>
               
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Description
-                </label>
-                <textarea
-                  value={editForm.description}
-                  onChange={(e) => setEditForm(prev => ({ ...prev, description: e.target.value }))}
-                  rows={3}
-                  className="w-full rounded-md border-gray-300 shadow-sm focus:border-black focus:ring-black px-3 py-2"
-                  required
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Context
-                </label>
-                <select
-                  value={editForm.context}
-                  onChange={(e) => setEditForm(prev => ({ ...prev, context: e.target.value }))}
-                  className="w-full rounded-md border-gray-300 shadow-sm focus:border-black focus:ring-black px-3 py-2"
-                >
-                  {CONTEXT_OPTIONS.map(option => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Goal
-                </label>
-                <textarea
-                  value={editForm.goal}
-                  onChange={(e) => setEditForm(prev => ({ ...prev, goal: e.target.value }))}
-                  rows={3}
-                  className="w-full rounded-md border-gray-300 shadow-sm focus:border-black focus:ring-black px-3 py-2"
-                  required
-                />
-              </div>
-              
-              <div className="flex space-x-3">
-                <button
-                  type="submit"
-                  className="bg-black text-white px-4 py-2 rounded-md font-medium hover:bg-gray-800"
-                >
-                  Save Changes
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setIsEditing(false)}
-                  className="bg-gray-300 text-gray-700 px-4 py-2 rounded-md font-medium hover:bg-gray-400"
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
+              <form onSubmit={handleEditSubmit} className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Speech Title
+                    </label>
+                    <input
+                      type="text"
+                      value={editForm.title}
+                      onChange={(e) => setEditForm(prev => ({ ...prev, title: e.target.value }))}
+                      className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-4 py-3 text-lg"
+                      placeholder="Enter speech title..."
+                      required
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Speaking Context
+                    </label>
+                    <select
+                      value={editForm.context}
+                      onChange={(e) => setEditForm(prev => ({ ...prev, context: e.target.value }))}
+                      className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-4 py-3"
+                    >
+                      {CONTEXT_OPTIONS.map(option => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Speech Goal
+                    </label>
+                    <textarea
+                      value={editForm.goal}
+                      onChange={(e) => setEditForm(prev => ({ ...prev, goal: e.target.value }))}
+                      rows={4}
+                      className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-4 py-3"
+                      placeholder="What do you want to achieve with this speech?"
+                      required
+                    />
+                  </div>
+                  
+                  <div className="md:col-span-2">
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Description
+                    </label>
+                    <textarea
+                      value={editForm.description}
+                      onChange={(e) => setEditForm(prev => ({ ...prev, description: e.target.value }))}
+                      rows={4}
+                      className="w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 px-4 py-3"
+                      placeholder="Additional details about your speech..."
+                      required
+                    />
+                  </div>
+                </div>
+                
+                <div className="flex justify-end space-x-4 pt-6 border-t border-gray-200">
+                  <button
+                    type="button"
+                    onClick={() => setIsEditing(false)}
+                    className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors duration-200"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-6 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors duration-200"
+                  >
+                    Save Changes
+                  </button>
+                </div>
+              </form>
+            </div>
           ) : (
             <>
-              <div className="flex justify-between items-start mb-4">
-                <div>
-                  <div className="flex items-center space-x-3 mb-2">
-                    <h1 className="text-3xl font-bold text-gray-900">
+              <div className="flex justify-between items-start mb-6">
+                <div className="flex-1">
+                  <div className="flex items-center space-x-4 mb-4">
+                    <h1 className="text-4xl font-bold text-gray-900 leading-tight">
                       {speech.title}
                     </h1>
-                    {speech.completed && (
-                      <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-medium">
-                        ✓ Completed
-                      </span>
-                    )}
-                    {!speech.completed && speech.prpsa_completed && (
-                      <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
-                        ✓ PRPSA Done
-                      </span>
-                    )}
+                    <div className="flex items-center space-x-2">
+                      {speech.completed && (
+                        <span className="inline-flex items-center bg-green-100 text-green-800 px-3 py-1.5 rounded-full text-sm font-semibold">
+                          <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                          </svg>
+                          Completed
+                        </span>
+                      )}
+                      {!speech.completed && speech.prpsa_completed && (
+                        <span className="inline-flex items-center bg-blue-100 text-blue-800 px-3 py-1.5 rounded-full text-sm font-semibold">
+                          <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                          </svg>
+                          PRPSA Done
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <div className="flex items-center space-x-2">
                     {speech.with_context && speech.context && (
-                      <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${getContextColor(speech.context)}`}>
+                      <span className={`inline-flex items-center px-3 py-1.5 rounded-full text-sm font-semibold ${getContextColor(speech.context)}`}>
+                        <span className="w-2 h-2 bg-current rounded-full mr-2"></span>
                         {speech.context}
                       </span>
                     )}
                     {!speech.with_context && (
-                      <span className="bg-gray-100 text-gray-800 px-3 py-1 rounded-full text-sm font-medium">
+                      <span className="inline-flex items-center bg-gray-100 text-gray-800 px-3 py-1.5 rounded-full text-sm font-semibold">
+                        <span className="w-2 h-2 bg-current rounded-full mr-2"></span>
                         Generic Speech
                       </span>
                     )}
                   </div>
                 </div>
-                <div className="flex space-x-2">
+                <div className="flex-shrink-0">
                   {!speech.completed && (
                     <button
                       onClick={() => setIsEditing(true)}
-                      className="bg-gray-100 text-gray-700 px-4 py-2 rounded-md font-medium hover:bg-gray-200"
+                      className="inline-flex items-center bg-gray-100 text-gray-700 px-4 py-2 rounded-lg font-medium hover:bg-gray-200 transition-colors duration-200"
                     >
+                      <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
                       Edit Speech
                     </button>
                   )}
@@ -329,108 +416,155 @@ export default function SpeechDetailPage() {
               </div>
               
               {speech.with_context ? (
-                <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {speech.goal && (
-                    <div>
-                      <h3 className="text-sm font-medium text-gray-500 mb-1">Goal</h3>
-                      <p className="text-gray-900">{speech.goal}</p>
+                    <div className="bg-blue-50 rounded-lg p-4">
+                      <div className="flex items-center mb-2">
+                        <svg className="w-5 h-5 text-blue-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
+                        </svg>
+                        <h3 className="text-sm font-semibold text-blue-900">Speech Goal</h3>
+                      </div>
+                      <p className="text-gray-800 leading-relaxed">{speech.goal}</p>
                     </div>
                   )}
                   
                   {speech.audience_description && (
-                    <div>
-                      <h3 className="text-sm font-medium text-gray-500 mb-1">Audience</h3>
-                      <p className="text-gray-900">{speech.audience_description}</p>
+                    <div className="bg-purple-50 rounded-lg p-4">
+                      <div className="flex items-center mb-2">
+                        <svg className="w-5 h-5 text-purple-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                        </svg>
+                        <h3 className="text-sm font-semibold text-purple-900">Target Audience</h3>
+                      </div>
+                      <p className="text-gray-800 leading-relaxed">{speech.audience_description}</p>
                     </div>
                   )}
                   
                   {speech.key_points && (
-                    <div>
-                      <h3 className="text-sm font-medium text-gray-500 mb-1">Key Points</h3>
-                      <p className="text-gray-900 whitespace-pre-line">{speech.key_points}</p>
+                    <div className="bg-green-50 rounded-lg p-4 md:col-span-2">
+                      <div className="flex items-center mb-2">
+                        <svg className="w-5 h-5 text-green-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                        </svg>
+                        <h3 className="text-sm font-semibold text-green-900">Key Points</h3>
+                      </div>
+                      <p className="text-gray-800 leading-relaxed whitespace-pre-line">{speech.key_points}</p>
                     </div>
                   )}
                   
                   {speech.self_improvement_goal && (
-                    <div>
-                      <h3 className="text-sm font-medium text-gray-500 mb-1">Improvement Goals</h3>
-                      <p className="text-gray-900">{speech.self_improvement_goal}</p>
+                    <div className="bg-orange-50 rounded-lg p-4">
+                      <div className="flex items-center mb-2">
+                        <svg className="w-5 h-5 text-orange-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                        </svg>
+                        <h3 className="text-sm font-semibold text-orange-900">Improvement Goals</h3>
+                      </div>
+                      <p className="text-gray-800 leading-relaxed">{speech.self_improvement_goal}</p>
                     </div>
                   )}
                   
                   {speech.description && (
-                    <div>
-                      <h3 className="text-sm font-medium text-gray-500 mb-1">Description</h3>
-                      <p className="text-gray-900">{speech.description}</p>
+                    <div className="bg-gray-50 rounded-lg p-4">
+                      <div className="flex items-center mb-2">
+                        <svg className="w-5 h-5 text-gray-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" />
+                        </svg>
+                        <h3 className="text-sm font-semibold text-gray-900">Description</h3>
+                      </div>
+                      <p className="text-gray-800 leading-relaxed">{speech.description}</p>
                     </div>
                   )}
-                  
-                  <div className="text-sm text-gray-500">
-                    Created: {formatDate(speech.created_at)}
-                    {speech.updated_at !== speech.created_at && (
-                      <span> • Updated: {formatDate(speech.updated_at)}</span>
-                    )}
-                  </div>
                 </div>
               ) : (
-                <div className="space-y-4">
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                    <h3 className="text-sm font-medium text-blue-900 mb-1">Generic Speech Mode</h3>
-                    <p className="text-sm text-blue-700">
-                      This is a Generic speech created with just a title. You can practice and get feedback without detailed context.
+                <div className="space-y-6">
+                  <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-6">
+                    <div className="flex items-center mb-3">
+                      <div className="w-8 h-8 bg-blue-500 text-white rounded-full flex items-center justify-center mr-3">
+                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                        </svg>
+                      </div>
+                      <h3 className="text-lg font-semibold text-blue-900">Generic Speech Mode</h3>
+                    </div>
+                    <p className="text-blue-800 leading-relaxed">
+                      This is a Generic speech created with just a title. You can practice and get feedback without detailed context requirements.
                     </p>
-                  </div>
-                  
-                  <div className="text-sm text-gray-500">
-                    Created: {formatDate(speech.created_at)}
-                    {speech.updated_at !== speech.created_at && (
-                      <span> • Updated: {formatDate(speech.updated_at)}</span>
-                    )}
                   </div>
                 </div>
               )}
+              
+              {/* Metadata */}
+              <div className="mt-6 pt-6 border-t border-gray-200">
+                <div className="flex items-center text-sm text-gray-500">
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  Created {formatDate(speech.created_at)}
+                  {speech.updated_at !== speech.created_at && (
+                    <span className="ml-4 flex items-center">
+                      <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                      Updated {formatDate(speech.updated_at)}
+                    </span>
+                  )}
+                </div>
+              </div>
             </>
           )}
         </div>
 
         {/* Actions */}
-        <div className="flex space-x-4 mb-6">
+        <div className="flex flex-wrap gap-4 mb-8">
           {!speech.completed ? (
             <>
               <Link
                 href={`/speeches/${speechId}/sessions/new`}
-                className="bg-black text-white px-6 py-3 rounded-md font-medium hover:bg-gray-800 transition-colors"
+                className="inline-flex items-center bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors duration-200 shadow-sm"
               >
-                + New Session
+                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                </svg>
+                New Session
               </Link>
               <Link
                 href={`/dashboard?speechId=${speechId}`}
-                className="bg-gray-600 text-white px-6 py-3 rounded-md font-medium hover:bg-gray-700 transition-colors"
+                className="inline-flex items-center bg-gray-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-gray-700 transition-colors duration-200 shadow-sm"
               >
+                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
                 Quick Practice
               </Link>
               {sessions.length > 0 && (
                 <button
                   onClick={handleCompleteSpeech}
-                  className="bg-green-600 text-white px-6 py-3 rounded-md font-medium hover:bg-green-700 transition-colors"
+                  className="inline-flex items-center bg-green-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-green-700 transition-colors duration-200 shadow-sm"
                 >
+                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
                   {speech.prpsa_completed ? 'Mark as Complete' : 'Complete Speech (PRPSA Required)'}
                 </button>
               )}
             </>
           ) : (
-            <div className="bg-green-50 border border-green-200 rounded-lg p-4 w-full">
+            <div className="bg-green-50 border border-green-200 rounded-xl p-6 w-full">
               <div className="flex items-center">
                 <div className="flex-shrink-0">
-                  <svg className="h-5 w-5 text-green-400" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                  </svg>
+                  <div className="w-10 h-10 bg-green-500 text-white rounded-full flex items-center justify-center">
+                    <svg className="h-6 w-6" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                    </svg>
+                  </div>
                 </div>
-                <div className="ml-3">
-                  <h3 className="text-sm font-medium text-green-800">
+                <div className="ml-4">
+                  <h3 className="text-lg font-semibold text-green-800">
                     Speech Completed!
                   </h3>
-                  <div className="mt-1 text-sm text-green-700">
+                  <div className="mt-1 text-green-700">
                     <p>This speech has been marked as completed. You can review sessions but cannot create new ones.</p>
                   </div>
                 </div>
@@ -440,78 +574,155 @@ export default function SpeechDetailPage() {
         </div>
 
         {/* Sessions List */}
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-4">
-            Practice Sessions ({sessions.length})
-          </h2>
-          
-          {sessions.length === 0 ? (
-            <div className="text-center py-8 bg-gray-50 rounded-lg">
-              <p className="text-gray-500 mb-4">No practice sessions yet</p>
+        <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-8">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900">
+                Practice Sessions
+              </h2>
+              <p className="text-gray-600 mt-1">
+                {sessions.length} session{sessions.length !== 1 ? 's' : ''} recorded
+              </p>
+            </div>
+            {sessions.length > 0 && !speech.completed && (
               <Link
                 href={`/speeches/${speechId}/sessions/new`}
-                className="inline-flex items-center bg-black text-white px-4 py-2 rounded-md font-medium hover:bg-gray-800"
+                className="inline-flex items-center bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors duration-200"
               >
+                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                </svg>
+                Add Session
+              </Link>
+            )}
+          </div>
+          
+          {sessions.length === 0 ? (
+            <div className="text-center py-12 bg-gray-50 rounded-xl">
+              <div className="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">No practice sessions yet</h3>
+              <p className="text-gray-500 mb-6">Start practicing your speech and get AI-powered feedback</p>
+              <Link
+                href={`/speeches/${speechId}/sessions/new`}
+                className="inline-flex items-center bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors duration-200"
+              >
+                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                </svg>
                 Record Your First Session
               </Link>
             </div>
           ) : (
             <div className="space-y-4">
-              {sessions.map((session) => (
+              {sessions.map((session, index) => (
                 <div
                   key={session.id}
-                  className="bg-white border border-gray-200 rounded-lg p-4"
+                  className="border border-gray-200 rounded-lg p-6 hover:border-blue-300 hover:shadow-sm transition-all duration-200"
                 >
-                  <div className="flex justify-between items-start mb-3">
-                    <div>
-                      <Link 
-                        href={`/speeches/${speechId}/sessions/${session.id}`}
-                        className="font-medium text-gray-900 hover:text-blue-600"
-                      >
-                        {session.title || `Session from ${formatDate(session.created_at)}`}
-                      </Link>
-                      {session.filler_word_count !== undefined && (
-                        <p className="text-sm text-gray-500">
-                          {session.filler_word_count} filler words detected
-                        </p>
-                      )}
+                  <div className="flex justify-between items-start mb-4">
+                    <div className="flex-1">
+                      <div className="flex items-center space-x-3 mb-2">
+                        <div className="w-8 h-8 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-sm font-semibold">
+                          {sessions.length - index}
+                        </div>
+                        <Link 
+                          href={`/speeches/${speechId}/sessions/${session.id}`}
+                          className="text-lg font-semibold text-gray-900 hover:text-blue-600 transition-colors duration-200"
+                        >
+                          {session.title || `Session from ${formatDate(session.created_at)}`}
+                        </Link>
+                      </div>
+                      
+                      <div className="flex items-center space-x-6 text-sm text-gray-600">
+                        <div className="flex items-center">
+                          <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          {formatDate(session.created_at)}
+                        </div>
+                        {session.filler_word_count !== undefined && (
+                          <div className="flex items-center">
+                            <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                            </svg>
+                            {session.filler_word_count} filler words
+                          </div>
+                        )}
+                        {(() => {
+                          const overallScore = getOverallScore(session.scores);
+                          return overallScore !== null && (
+                            <div className="flex items-center">
+                              <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
+                              </svg>
+                              <span className={`px-2 py-1 rounded-full text-xs font-semibold ${getScoreColor(overallScore)}`}>
+                                {overallScore}% overall
+                              </span>
+                            </div>
+                          );
+                        })()}
+                      </div>
                     </div>
-                    <div className="flex space-x-2">
+                    <div className="flex items-center space-x-3">
                       <Link
                         href={`/speeches/${speechId}/sessions/${session.id}`}
-                        className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                        className="inline-flex items-center text-blue-600 hover:text-blue-800 text-sm font-medium transition-colors duration-200"
                       >
+                        <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        </svg>
                         View Details
                       </Link>
                       <button
                         onClick={() => handleDeleteSession(session.id)}
-                        className="text-red-600 hover:text-red-800 text-sm font-medium"
+                        className="inline-flex items-center text-red-600 hover:text-red-800 text-sm font-medium transition-colors duration-200"
                       >
+                        <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
                         Delete
                       </button>
                     </div>
                   </div>
                   
-                  {session.transcript && (
-                    <div className="mb-3">
-                      <h4 className="text-sm font-medium text-gray-700 mb-1">Transcript Preview</h4>
-                      <p className="text-sm text-gray-600 line-clamp-2">
-                        {session.transcript.substring(0, 150)}...
-                      </p>
-                    </div>
-                  )}
-                  
-                  {session.feedback && (
-                    <div>
-                      <h4 className="text-sm font-medium text-gray-700 mb-1">Feedback Preview</h4>
-                      <p className="text-sm text-gray-600 line-clamp-1">
-                        {typeof session.feedback === 'string' 
-                          ? session.feedback.substring(0, 100) + '...'
-                          : 'Analysis completed'
-                        }
-                      </p>
-                    </div>
-                  )}
+                  {/* Session Content Sections */}
+                  <div className="space-y-3">
+                    {session.transcript && (
+                      <div className="bg-gray-50 rounded-lg p-3">
+                        <h4 className="text-sm font-semibold text-gray-700 mb-2 flex items-center">
+                          <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                          Transcript Preview
+                        </h4>
+                        <p className="text-sm text-gray-600 line-clamp-2 leading-relaxed">
+                          {session.transcript.substring(0, 200)}...
+                        </p>
+                      </div>
+                    )}
+                    
+                    {session.feedback && (
+                      <div className="bg-blue-50 rounded-lg p-3">
+                        <h4 className="text-sm font-semibold text-blue-900 mb-2 flex items-center">
+                          <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                          </svg>
+                          AI Feedback Summary
+                        </h4>
+                        <p className="text-sm text-blue-800 leading-relaxed">
+                          {(() => {
+                            const summary = getFeedbackSummary(session.feedback);
+                            return summary || 'Detailed analysis and recommendations available';
+                          })()}
+                        </p>
+                      </div>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>

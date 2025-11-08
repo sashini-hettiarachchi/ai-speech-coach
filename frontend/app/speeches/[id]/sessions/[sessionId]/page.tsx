@@ -131,6 +131,7 @@ interface Session {
         };
     };
     feedback_summary?: {
+        summary: string;
         improvements: string[];
         strengths: string[];
     };
@@ -173,6 +174,7 @@ interface Session {
     };
     // New fields
     revised_speech_text?: string;
+    revised_speech_audio_url?: string;
     improvements?: string[];
     strengths?: string[];
     full_analysis_results?: {
@@ -353,9 +355,9 @@ export default function SessionDetailPage() {
 
     // Get score label based on 1-5 range
     const getScoreLabel = (score: number) => {
-        if (score >= 1 && score < 2) return { label: 'Unsatisfactory', color: 'text-red-600' };
-        if (score >= 2 && score <= 3.5) return { label: 'Satisfactory', color: 'text-yellow-600' };
-        if (score > 3.5) return { label: 'Excellent', color: 'text-green-600' };
+        if (score <= 2) return { label: 'Unsatisfactory', color: 'text-red-600' };
+        if (score > 2 && score < 4) return { label: 'Satisfactory', color: 'text-yellow-600' };
+        if (score >= 4) return { label: 'Excellent', color: 'text-green-600' };
         return { label: 'Not Rated', color: 'text-gray-500' };
     };
 
@@ -522,7 +524,7 @@ export default function SessionDetailPage() {
                 {/* Audio/Video Player */}
                 {session.media_url && (
                     <div className="bg-white border border-gray-200 rounded-lg p-6 mb-6">
-                        <h2 className="text-xl font-bold text-gray-900 mb-4">Recording</h2>
+                        <h2 className="text-xl font-bold text-gray-900 mb-4">Original Recording</h2>
                         <MediaPlayer
                             mediaUrl={session.media_url}
                             mediaType={session.media_type as 'audio' | 'video'}
@@ -551,121 +553,71 @@ export default function SessionDetailPage() {
                         Comprehensive Feedback Analysis
                     </h2>
 
-                    {/* Research Context Banner */}
-                    <div className="bg-white border-l-4 border-blue-500 p-4 mb-6 rounded-r-lg">
-                        <div className="flex items-center">
-                            <div className="text-blue-500 font-semibold text-sm">RESEARCH STUDY</div>
-                        </div>
-                    </div>
-
                     {/* Feedback */}
                     <div className="grid grid-cols-1  gap-6 mb-6">
 
                         {/* Context-Aware Feedback */}
                         <div className="bg-white border border-green-200 rounded-lg p-5">
-                            <div className="flex items-center mb-4">
-                                <div className="w-6 h-6 bg-green-500 text-white rounded-full flex items-center justify-center text-xs mr-2">✓</div>
-                                <h3 className="text-lg font-bold text-green-800">Feedback</h3>
-                            </div>
 
-                            {/* Summary */}
-                            {session.full_analysis_results?.feedback?.summary && (
+                            {/* Strengths and Improvements Summary */}
+                            {(session.feedback_summary?.strengths || session.feedback_summary?.improvements || session.strengths || session.improvements) && (
                                 <div className="mb-4">
-                                    <h4 className="font-semibold text-gray-900 mb-2">Summary</h4>
-                                    <p className="text-gray-700 text-sm bg-green-50 p-3 rounded-lg">{session.full_analysis_results.feedback.summary}</p>
-                                </div>
-                            )}
-
-                            {/* Suggestions */}
-                            {session.full_analysis_results?.feedback?.suggestions && (
-                                <div className="mb-4">
-                                    <h4 className="font-semibold text-gray-900 mb-2">Key Suggestions</h4>
-                                    <ul className="space-y-2">
-                                        {session.full_analysis_results.feedback.suggestions.map((suggestion, index) => (
-                                            <li key={index} className="flex items-start space-x-2 text-sm">
-                                                <div className="w-1.5 h-1.5 bg-green-500 rounded-full mt-2 flex-shrink-0"></div>
-                                                <span className="text-gray-700">{suggestion}</span>
-                                            </li>
-                                        ))}
-                                    </ul>
-                                </div>
-                            )}
-
-                            {/* Motivation */}
-                            {session.full_analysis_results?.feedback?.motivation && (
-                                <div className="mb-4">
-                                    <h4 className="font-semibold text-blue-800 mb-2 flex items-center">
-                                        <span className="w-4 h-4 bg-blue-500 text-white rounded-full flex items-center justify-center text-xs mr-2">💪</span>
-                                        Motivation
+                                    <h4 className="font-semibold text-gray-900 mb-3 flex items-center">
+                                        <span className="w-4 h-4 bg-gray-700 text-white rounded-full flex items-center justify-center text-xs mr-2">📋</span>
+                                        Summary
                                     </h4>
-                                    <p className="text-gray-700 text-sm bg-blue-50 p-3 rounded-lg border-l-4 border-blue-500">{session.full_analysis_results.feedback.motivation}</p>
-                                </div>
-                            )}
-
-                            {/* Improved Excerpt */}
-                            {session.full_analysis_results?.feedback?.improved_excerpt && (
-                                <div className="mb-4">
-                                    <h4 className="font-semibold text-gray-900 mb-2">Improved Version</h4>
-                                    <div className="bg-green-50 border-l-4 border-green-500 p-3 rounded-r-lg">
-                                        <p className="text-gray-700 italic text-sm">"{session.full_analysis_results.feedback.improved_excerpt}"</p>
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Strengths */}
-                            {session.full_analysis_results?.feedback?.strengths && session.full_analysis_results.feedback.strengths.length > 0 && (
-                                <div className="mb-4">
-                                    <h4 className="font-semibold text-green-800 mb-2 flex items-center">
-                                        <span className="w-4 h-4 bg-green-500 text-white rounded-full flex items-center justify-center text-xs mr-2">+</span>
-                                        Strengths
-                                    </h4>
-                                    <ul className="space-y-2">
-                                        {session.full_analysis_results.feedback.strengths.map((strength, index) => (
-                                            <li key={index} className="text-sm bg-green-50 p-2 rounded border-l-2 border-green-300">
-                                                <div className="font-medium text-green-700">{strength.title}</div>
-                                                {strength.details && <div className="text-gray-600 text-xs mt-1">{strength.details}</div>}
-                                            </li>
-                                        ))}
-                                    </ul>
-                                </div>
-                            )}
-
-                            {/* Issues */}
-                            {session.full_analysis_results?.feedback?.issues && session.full_analysis_results.feedback.issues.length > 0 && (
-                                <div className="mb-4">
-                                    <h4 className="font-semibold text-red-800 mb-2 flex items-center">
-                                        <span className="w-4 h-4 bg-red-500 text-white rounded-full flex items-center justify-center text-xs mr-2">!</span>
-                                        Issues to Address
-                                    </h4>
-                                    <ul className="space-y-2">
-                                        {session.full_analysis_results.feedback.issues.map((issue, index) => (
-                                            <li key={index} className="text-sm bg-red-50 p-2 rounded border-l-2 border-red-300">
-                                                <div className="font-medium text-red-700">{issue.title}</div>
-                                                {issue.details && <div className="text-gray-600 text-xs mt-1">{issue.details}</div>}
-                                            </li>
-                                        ))}
-                                    </ul>
-                                </div>
-                            )}
-
-                            {/* Micro Exercises */}
-                            {session.full_analysis_results?.feedback?.micro_exercises && (
-                                <div className="mb-4">
-                                    <h4 className="font-semibold text-purple-800 mb-2 flex items-center">
-                                        <span className="w-4 h-4 bg-purple-500 text-white rounded-full flex items-center justify-center text-xs mr-2">Ex</span>
-                                        Recommended Exercises
-                                    </h4>
-                                    <div className="space-y-3">
-                                        {session.full_analysis_results.feedback.micro_exercises.map((exercise, index) => (
-                                            <div key={index} className="p-3 border border-purple-200 rounded-lg bg-purple-50">
-                                                <div className="flex items-start justify-between mb-2">
-                                                    <h5 className="font-bold text-purple-900 text-sm">{exercise.title}</h5>
-                                                    <span className="text-xs bg-purple-200 text-purple-800 px-2 py-1 rounded-full">{exercise.duration}</span>
-                                                </div>
-                                                <div className="text-xs text-purple-700 mb-2 font-medium">Focus: {exercise.focus_area}</div>
-                                                <p className="text-gray-700 text-xs">{exercise.description}</p>
+                                    
+                                    {/* Enhanced Summary Display */}
+                                    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-l-4 border-blue-400 rounded-r-lg p-4 mb-4">
+                                        <div className="flex items-start space-x-3">
+                                            <div className="w-8 h-8 bg-blue-500 text-white rounded-full flex items-center justify-center text-sm flex-shrink-0 mt-1">
+                                                💡
                                             </div>
-                                        ))}
+                                            <div className="flex-1">
+                                                <h5 className="font-medium text-blue-900 mb-2">Performance Overview</h5>
+                                                <p className="text-gray-800 leading-relaxed text-sm">
+                                                    {session.feedback_summary?.summary || 'No summary available'}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        {/* Strengths */}
+                                        {((session.feedback_summary?.strengths && session.feedback_summary.strengths.length > 0) || (session.strengths && session.strengths.length > 0)) && (
+                                            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                                                <h5 className="font-semibold text-green-800 mb-2 flex items-center">
+                                                    <span className="w-4 h-4 bg-green-500 text-white rounded-full flex items-center justify-center text-xs mr-2">✓</span>
+                                                    Strengths
+                                                </h5>
+                                                <ul className="space-y-1">
+                                                    {(session.feedback_summary?.strengths || session.strengths || []).map((strength, index) => (
+                                                        <li key={index} className="flex items-start space-x-2 text-sm">
+                                                            <div className="w-1.5 h-1.5 bg-green-500 rounded-full mt-2 flex-shrink-0"></div>
+                                                            <span className="text-gray-700">{strength}</span>
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                            </div>
+                                        )}
+
+                                        {/* Improvements */}
+                                        {((session.feedback_summary?.improvements && session.feedback_summary.improvements.length > 0) || (session.improvements && session.improvements.length > 0)) && (
+                                            <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                                                <h5 className="font-semibold text-orange-800 mb-2 flex items-center">
+                                                    <span className="w-4 h-4 bg-orange-500 text-white rounded-full flex items-center justify-center text-xs mr-2">↗</span>
+                                                    Areas for Improvement
+                                                </h5>
+                                                <ul className="space-y-1">
+                                                    {(session.feedback_summary?.improvements || session.improvements || []).map((improvement, index) => (
+                                                        <li key={index} className="flex items-start space-x-2 text-sm">
+                                                            <div className="w-1.5 h-1.5 bg-orange-500 rounded-full mt-2 flex-shrink-0"></div>
+                                                            <span className="text-gray-700">{improvement}</span>
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             )}
@@ -681,15 +633,15 @@ export default function SessionDetailPage() {
                                         <div className="flex flex-wrap gap-4 text-xs">
                                             <div className="flex items-center">
                                                 <div className="w-3 h-3 bg-red-500 rounded-full mr-1"></div>
-                                                <span className="text-red-600 font-medium">1-2: Unsatisfactory</span>
+                                                <span className="text-red-600 font-medium">&lt;2: Unsatisfactory</span>
                                             </div>
                                             <div className="flex items-center">
                                                 <div className="w-3 h-3 bg-yellow-500 rounded-full mr-1"></div>
-                                                <span className="text-yellow-600 font-medium">2-3.5: Satisfactory</span>
+                                                <span className="text-yellow-600 font-medium">2-4: Satisfactory</span>
                                             </div>
                                             <div className="flex items-center">
                                                 <div className="w-3 h-3 bg-green-500 rounded-full mr-1"></div>
-                                                <span className="text-green-600 font-medium">&gt;3.5: Excellent</span>
+                                                <span className="text-green-600 font-medium">&gt;=4: Excellent</span>
                                             </div>
                                         </div>
                                     </div>
@@ -768,53 +720,27 @@ export default function SessionDetailPage() {
                                 </div>
                             )}
 
-                            {/* Strengths and Improvements Summary */}
-                            {(session.feedback_summary?.strengths || session.feedback_summary?.improvements || session.strengths || session.improvements) && (
-                                <div className="mb-4">
-                                    <h4 className="font-semibold text-gray-900 mb-3 flex items-center">
-                                        <span className="w-4 h-4 bg-gray-700 text-white rounded-full flex items-center justify-center text-xs mr-2">📋</span>
-                                        Summary
-                                    </h4>
-
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        {/* Strengths */}
-                                        {((session.feedback_summary?.strengths && session.feedback_summary.strengths.length > 0) || (session.strengths && session.strengths.length > 0)) && (
-                                            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                                                <h5 className="font-semibold text-green-800 mb-2 flex items-center">
-                                                    <span className="w-4 h-4 bg-green-500 text-white rounded-full flex items-center justify-center text-xs mr-2">✓</span>
-                                                    Strengths
-                                                </h5>
-                                                <ul className="space-y-1">
-                                                    {(session.feedback_summary?.strengths || session.strengths || []).map((strength, index) => (
-                                                        <li key={index} className="flex items-start space-x-2 text-sm">
-                                                            <div className="w-1.5 h-1.5 bg-green-500 rounded-full mt-2 flex-shrink-0"></div>
-                                                            <span className="text-gray-700">{strength}</span>
-                                                        </li>
-                                                    ))}
-                                                </ul>
-                                            </div>
-                                        )}
-
-                                        {/* Improvements */}
-                                        {((session.feedback_summary?.improvements && session.feedback_summary.improvements.length > 0) || (session.improvements && session.improvements.length > 0)) && (
-                                            <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
-                                                <h5 className="font-semibold text-orange-800 mb-2 flex items-center">
-                                                    <span className="w-4 h-4 bg-orange-500 text-white rounded-full flex items-center justify-center text-xs mr-2">↗</span>
-                                                    Areas for Improvement
-                                                </h5>
-                                                <ul className="space-y-1">
-                                                    {(session.feedback_summary?.improvements || session.improvements || []).map((improvement, index) => (
-                                                        <li key={index} className="flex items-start space-x-2 text-sm">
-                                                            <div className="w-1.5 h-1.5 bg-orange-500 rounded-full mt-2 flex-shrink-0"></div>
-                                                            <span className="text-gray-700">{improvement}</span>
-                                                        </li>
-                                                    ))}
-                                                </ul>
-                                            </div>
-                                        )}
-                                    </div>
+                            {/* Revised Speech Audio Player */}
+                            {session.revised_speech_audio_url && (
+                                <div className="bg-white border border-green-200 rounded-lg p-6 mb-6">
+                                    <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center">
+                                        <span className="w-6 h-6 bg-green-500 text-white rounded-full flex items-center justify-center text-xs mr-2">✨</span>
+                                        AI-Generated Improved Speech Audio
+                                    </h2>
+                                    <p className="text-gray-600 text-sm mb-4">
+                                        This is an AI-generated audio version of your improved speech text using text-to-speech technology.
+                                    </p>
+                                    <MediaPlayer
+                                        mediaUrl={session.revised_speech_audio_url}
+                                        mediaType="audio"
+                                        originalFilename={`revised_speech_${session.id}.mp3`}
+                                        sessionId={session.id}
+                                        onUrlRefresh={() => { }} // No refresh needed for generated audio
+                                    />
                                 </div>
                             )}
+
+
 
                             {/* Context-Specific Tips */}
                             {session.full_analysis_results?.feedback?.context_specific_tips && (
@@ -839,7 +765,7 @@ export default function SessionDetailPage() {
                 </div>
 
 
-                           {/* ANALYSIS SECTION */}
+                {/* ANALYSIS SECTION */}
                 <div className="bg-gradient-to-r from-gray-50 to-slate-50 border border-gray-200 rounded-lg p-4 mb-6 mt-6">
                     <h1 className="text-2xl font-bold text-gray-900 flex items-center">
                         <span className="w-8 h-8 bg-gray-700 text-white rounded-full flex items-center justify-center text-sm mr-3">📊</span>

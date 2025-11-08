@@ -5,7 +5,7 @@ This tool evaluates the use of vocal variety in rate, pitch, and intensity (volu
 to heighten and maintain interest, following CSSEF Competency 6 criteria.
 
 This competency specifically requires prosody analysis data to provide accurate
-scoring based on actual vocal delivery metrics.
+scoring based on actual vocal delivery metrics, including word-level prosody analysis.
 
 Evaluation Criteria:
 - Effective use of vocal variety in conversational mode
@@ -15,7 +15,7 @@ Evaluation Criteria:
 """
 
 import os
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from pydantic import BaseModel, Field
 from tools.base import BaseTool
 from config import OPENAI_API_KEY, OPENAI_MODEL, OPENAI_TEMPERATURE
@@ -107,23 +107,27 @@ class CSSEFIC6Tool(BaseTool[CSSEFIC6ToolInput, CSSEFIC6ToolOutput]):
     def _create_evaluation_prompt(self, inputs: CSSEFIC6ToolInput) -> str:
         """Create the evaluation prompt for OpenAI with prosody analysis"""
         
-        # Extract prosody metrics
+        # Extract prosody data
         prosody = inputs.prosody_results
-        pitch_data = prosody.get('pitch', {})
-        volume_data = prosody.get('volume', {})
-        pace_data = prosody.get('pace', {})
         
-        # Calculate prosody metrics for evaluation
-        pitch_mean = pitch_data.get('mean', 0)
-        pitch_std = pitch_data.get('std', 0)
-        pitch_range = pitch_data.get('max', 0) - pitch_data.get('min', 0)
+        # Overall prosody statistics
+        pitch_mean = prosody.get('pitch_mean', 0)
+        pitch_std = prosody.get('pitch_std', 0)
+        volume_mean = prosody.get('volume_mean', 0)
+        volume_std = prosody.get('volume_std', 0)
+        words_per_minute = prosody.get('words_per_minute', inputs.words_per_minute)
         
-        volume_mean = volume_data.get('mean', 0)
-        volume_std = volume_data.get('std', 0)
-        volume_range = volume_data.get('max', 0) - volume_data.get('min', 0)
+        # Detailed events for analysis
+        pause_events = prosody.get('pause_events', [])
+        pitch_events = prosody.get('pitch_events', [])
+        volume_events = prosody.get('volume_events', [])
+        speed_events = prosody.get('speed_events', [])
         
-        pause_count = prosody.get('pause_count', 0)
-        avg_pause_duration = prosody.get('average_pause_duration', 0)
+        # NEW: Word-level prosody analysis for detailed evaluation
+        word_prosody_events = prosody.get('word_prosody_events', [])
+        
+        # Analyze word-level patterns for more detailed insights
+        vocal_variety_insights = self._analyze_word_level_vocal_variety(word_prosody_events)
         
         # Pace analysis
         duration_minutes = inputs.speech_duration / 60
@@ -139,66 +143,155 @@ EVALUATION CRITERIA:
 SPEECH DETAILS:
 - Context: {inputs.context or 'General'}
 - Duration: {duration_minutes:.1f} minutes
-- Words per minute: {inputs.words_per_minute:.1f} WPM
+- Overall words per minute: {words_per_minute:.1f} WPM
 
-PROSODY ANALYSIS DATA:
+OVERALL PROSODY ANALYSIS:
 
 1. PITCH VARIATION:
    - Mean pitch: {pitch_mean:.1f} Hz
    - Standard deviation: {pitch_std:.1f} Hz
-   - Pitch range: {pitch_range:.1f} Hz
-   - Assessment: {'Good variety' if pitch_std > 20 else 'Limited variety' if pitch_std > 10 else 'Very limited variety'}
+   - Assessment: {'Excellent variety' if pitch_std > 25 else 'Good variety' if pitch_std > 15 else 'Limited variety' if pitch_std > 8 else 'Very limited variety'}
+   - Pitch events detected: {len(pitch_events)} significant variations
 
 2. VOLUME/INTENSITY VARIATION:
    - Mean volume: {volume_mean:.1f} dB
    - Standard deviation: {volume_std:.1f} dB
-   - Volume range: {volume_range:.1f} dB
-   - Assessment: {'Good dynamics' if volume_std > 3 else 'Limited dynamics' if volume_std > 1.5 else 'Very limited dynamics'}
+   - Assessment: {'Excellent dynamics' if volume_std > 4 else 'Good dynamics' if volume_std > 2.5 else 'Limited dynamics' if volume_std > 1.5 else 'Very limited dynamics'}
+   - Volume events detected: {len(volume_events)} significant variations
 
 3. RATE/PACE ANALYSIS:
-   - Speaking rate: {inputs.words_per_minute:.1f} WPM
+   - Speaking rate: {words_per_minute:.1f} WPM
    - Optimal range: 150-200 WPM for most contexts
-   - Rate assessment: {'Appropriate' if 140 <= inputs.words_per_minute <= 220 else 'Too fast' if inputs.words_per_minute > 220 else 'Too slow'}
-   - Pause count: {pause_count}
-   - Average pause duration: {avg_pause_duration:.2f} seconds
+   - Rate assessment: {'Appropriate' if 140 <= words_per_minute <= 220 else 'Too fast' if words_per_minute > 220 else 'Too slow'}
+   - Pause events: {len(pause_events)} strategic pauses
+   - Speed events: {len(speed_events)} rate variations
 
-4. CONVERSATIONAL QUALITY:
-   - Natural pacing with strategic pauses
-   - Pitch variety that supports meaning
-   - Volume changes for emphasis
+WORD-LEVEL VOCAL VARIETY ANALYSIS:
+{vocal_variety_insights}
 
-TRANSCRIPT:
-{inputs.transcript[:1500]}
+TRANSCRIPT EXCERPT (for content context):
+{inputs.transcript[:1000]}...
 
 EVALUATION INSTRUCTIONS:
 
 1. RATE EVALUATION:
    - Is speaking pace appropriate for content and audience?
    - Are pauses used effectively for emphasis and comprehension?
-   - Does pace vary to maintain interest?
+   - Does pace vary to maintain interest and support meaning?
+   - Look for natural rhythm and strategic speed changes
 
 2. PITCH EVALUATION:
    - Is there sufficient pitch variation (std dev > 15 Hz is good)?
    - Does pitch support meaning and emotion?
-   - Avoid monotone delivery
+   - Are there pitch stresses at key moments?
+   - Avoid monotone delivery assessment
 
 3. INTENSITY/VOLUME EVALUATION:
    - Is volume appropriate and audible?
-   - Is there variation for emphasis (std dev > 2 dB is good)?
-   - Does volume support the message?
+   - Is there variation for emphasis (std dev > 2.5 dB is good)?
+   - Does volume support the message and maintain interest?
+   - Are volume changes purposeful?
 
 4. CONVERSATIONAL MODE:
    - Does delivery sound natural and conversational?
    - Is vocal variety purposeful rather than random?
    - Does it enhance rather than distract from content?
+   - Is there appropriate vocal energy?
+
+5. WORD-LEVEL ANALYSIS:
+   - Use the word-level prosody data to identify specific examples
+   - Note words with effective vocal emphasis
+   - Identify missed opportunities for vocal variety
+   - Comment on natural speech patterns
 
 CONTEXT-SPECIFIC CONSIDERATIONS:
 - Academic: Clear, measured pace; professional tone; emphasis on key points
 - Persuasive: Dynamic variety to build emotion and conviction
 - Storytelling: Varied pace and pitch to create drama and engagement
 
-Base your evaluation on the prosody data provided, which gives objective measurements of the speaker's vocal delivery.
+Base your evaluation on both overall prosody statistics AND word-level analysis for comprehensive assessment.
 """
+    
+    def _analyze_word_level_vocal_variety(self, word_prosody_events: List[Dict[str, Any]]) -> str:
+        """
+        Analyze word-level prosody events to provide detailed vocal variety insights.
+        
+        Args:
+            word_prosody_events: List of word-level prosody data
+            
+        Returns:
+            Formatted analysis string for the evaluation prompt
+        """
+        if not word_prosody_events:
+            return "No word-level prosody data available for detailed analysis."
+        
+        # Count vocal variety patterns
+        stress_words = []
+        loud_words = []
+        soft_words = []
+        fast_words = []
+        slow_words = []
+        pause_before_words = []
+        pause_after_words = []
+        
+        for word_data in word_prosody_events:
+            word = word_data.get('word', '')
+            
+            # Pitch analysis
+            if word_data.get('pitch_level') == 'stress':
+                stress_words.append(word)
+            
+            # Volume analysis
+            if word_data.get('volume_level') == 'louder':
+                loud_words.append(word)
+            elif word_data.get('volume_level') == 'softer':
+                soft_words.append(word)
+            
+            # Speed analysis
+            if word_data.get('speed_level') == 'faster':
+                fast_words.append(word)
+            elif word_data.get('speed_level') == 'slower':
+                slow_words.append(word)
+            
+            # Pause analysis
+            if word_data.get('pause_before'):
+                pause_before_words.append(f"{word} (after {word_data.get('pause_before_duration', 0):.1f}s pause)")
+            if word_data.get('pause_after'):
+                pause_after_words.append(f"{word} (before {word_data.get('pause_after_duration', 0):.1f}s pause)")
+        
+        # Calculate variety percentages
+        total_words = len(word_prosody_events)
+        pitch_variety_pct = (len(stress_words) / total_words * 100) if total_words > 0 else 0
+        volume_variety_pct = ((len(loud_words) + len(soft_words)) / total_words * 100) if total_words > 0 else 0
+        speed_variety_pct = ((len(fast_words) + len(slow_words)) / total_words * 100) if total_words > 0 else 0
+        pause_variety_pct = ((len(pause_before_words) + len(pause_after_words)) / total_words * 100) if total_words > 0 else 0
+        
+        analysis = f"""
+WORD-LEVEL VOCAL VARIETY DETAILS ({total_words} words analyzed):
+
+📈 PITCH VARIETY: {pitch_variety_pct:.1f}% of words with pitch stress
+   - Words with pitch emphasis: {', '.join(stress_words[:10])}{'...' if len(stress_words) > 10 else ''}
+   - Assessment: {'Excellent' if pitch_variety_pct > 15 else 'Good' if pitch_variety_pct > 8 else 'Limited' if pitch_variety_pct > 3 else 'Very limited'} pitch variety
+
+🔊 VOLUME VARIETY: {volume_variety_pct:.1f}% of words with volume variation
+   - Louder words (emphasis): {', '.join(loud_words[:8])}{'...' if len(loud_words) > 8 else ''}
+   - Softer words (de-emphasis): {', '.join(soft_words[:5])}{'...' if len(soft_words) > 5 else ''}
+   - Assessment: {'Excellent' if volume_variety_pct > 20 else 'Good' if volume_variety_pct > 12 else 'Limited' if volume_variety_pct > 5 else 'Very limited'} volume dynamics
+
+⚡ SPEED VARIETY: {speed_variety_pct:.1f}% of words with pace variation
+   - Faster words: {', '.join(fast_words[:8])}{'...' if len(fast_words) > 8 else ''}
+   - Slower words: {', '.join(slow_words[:8])}{'...' if len(slow_words) > 8 else ''}
+   - Assessment: {'Excellent' if speed_variety_pct > 25 else 'Good' if speed_variety_pct > 15 else 'Limited' if speed_variety_pct > 8 else 'Very limited'} pace variation
+
+⏸️ PAUSE STRATEGY: {pause_variety_pct:.1f}% of words associated with strategic pauses
+   - Words after pauses: {', '.join(pause_before_words[:5])}{'...' if len(pause_before_words) > 5 else ''}
+   - Words before pauses: {', '.join(pause_after_words[:5])}{'...' if len(pause_after_words) > 5 else ''}
+   - Assessment: {'Excellent' if pause_variety_pct > 12 else 'Good' if pause_variety_pct > 6 else 'Limited' if pause_variety_pct > 2 else 'Very limited'} pause usage
+
+OVERALL VOCAL VARIETY SCORE: {(pitch_variety_pct + volume_variety_pct + speed_variety_pct + pause_variety_pct) / 4:.1f}% combined variety
+"""
+        
+        return analysis.strip()
     
     def _get_fallback_evaluation(self) -> CSSEFIC6ToolOutput:
         """Return fallback evaluation when API fails"""

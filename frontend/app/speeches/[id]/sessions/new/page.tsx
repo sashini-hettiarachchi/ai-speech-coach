@@ -15,7 +15,6 @@ interface Speech {
   goal: string;
   audience_description: string;
   key_points: string;
-  self_improvement_goal: string;
   context: string;
   with_context: boolean;
   completed: boolean;
@@ -128,7 +127,7 @@ export default function NewSessionPage() {
     try {
       // Create session first
       const result = await sessionApi.analyzeAndCreateSession(speechId, selectedFile, sessionTitle.trim() || undefined);
-
+      console.log("Session created:", result);
       toast.success("Session created and analysis completed!");
       router.push(`/speeches/${speechId}/sessions/${result.session_id}`);
     } catch (error) {
@@ -331,21 +330,6 @@ export default function NewSessionPage() {
               </div>
             )}
 
-            {/* Self Improvement Goal */}
-            {speech.self_improvement_goal && (
-              <div>
-                <h3 className="text-sm font-semibold text-slate-700 mb-2 flex items-center">
-                  <svg className="w-4 h-4 mr-2 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                  </svg>
-                  What You Want to Improve
-                </h3>
-                <p className="text-slate-600 text-sm leading-relaxed bg-white/50 rounded-md p-3 border border-slate-200">
-                  {speech.self_improvement_goal}
-                </p>
-              </div>
-            )}
-
             {/* Quick Tips */}
             {speech.context && <div className="bg-amber-50 border border-amber-200 rounded-md p-3">
               <h3 className="text-sm font-semibold text-amber-800 mb-2 flex items-center">
@@ -357,7 +341,6 @@ export default function NewSessionPage() {
               <ul className="text-xs text-amber-700 space-y-1">
                 <li>• Review your key points before recording</li>
                 <li>• Keep your target audience in mind</li>
-                <li>• Focus on your improvement goals</li>
                 <li>• Practice with confidence and clarity</li>
                 <li>• Remember the context: <strong>{speech.context}</strong></li>
               </ul>
@@ -536,12 +519,6 @@ export default function NewSessionPage() {
               >
                 {!selectedFile ? 'Select File First' : '🚀 Start AI Analysis'}
               </button>
-            )}
-
-            {selectedFile && (
-              <p className="text-sm text-gray-600 text-center mt-2">
-                Please complete your self-rating above to enable the analysis button
-              </p>
             )}
           </div>
         </form>
