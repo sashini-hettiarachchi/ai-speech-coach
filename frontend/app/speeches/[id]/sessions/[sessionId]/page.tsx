@@ -553,75 +553,68 @@ export default function SessionDetailPage() {
                         Comprehensive Feedback Analysis
                     </h2>
 
-                    {/* Feedback */}
-                    <div className="grid grid-cols-1  gap-6 mb-6">
-
-                        {/* Context-Aware Feedback */}
-                        <div className="bg-white border border-green-200 rounded-lg p-5">
-
-                            {/* Strengths and Improvements Summary */}
-                            {(session.feedback_summary?.strengths || session.feedback_summary?.improvements || session.strengths || session.improvements) && (
+                    {/* Feedback Summary */}
+                    {session.feedback_summary && (
+                        <div className="mb-6 bg-white border border-gray-200 rounded-lg p-6">
+                            <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center">
+                                <span className="w-6 h-6 bg-green-500 text-white rounded-full flex items-center justify-center text-xs mr-2">📝</span>
+                                Executive Summary
+                            </h3>
+                            
+                            {session.feedback_summary.summary && (
                                 <div className="mb-4">
-                                    <h4 className="font-semibold text-gray-900 mb-3 flex items-center">
-                                        <span className="w-4 h-4 bg-gray-700 text-white rounded-full flex items-center justify-center text-xs mr-2">📋</span>
-                                        Summary
-                                    </h4>
-                                    
-                                    {/* Enhanced Summary Display */}
-                                    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-l-4 border-blue-400 rounded-r-lg p-4 mb-4">
-                                        <div className="flex items-start space-x-3">
-                                            <div className="w-8 h-8 bg-blue-500 text-white rounded-full flex items-center justify-center text-sm flex-shrink-0 mt-1">
-                                                💡
-                                            </div>
-                                            <div className="flex-1">
-                                                <h5 className="font-medium text-blue-900 mb-2">Performance Overview</h5>
-                                                <p className="text-gray-800 leading-relaxed text-sm">
-                                                    {session.feedback_summary?.summary || 'No summary available'}
-                                                </p>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        {/* Strengths */}
-                                        {((session.feedback_summary?.strengths && session.feedback_summary.strengths.length > 0) || (session.strengths && session.strengths.length > 0)) && (
-                                            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                                                <h5 className="font-semibold text-green-800 mb-2 flex items-center">
-                                                    <span className="w-4 h-4 bg-green-500 text-white rounded-full flex items-center justify-center text-xs mr-2">✓</span>
-                                                    Strengths
-                                                </h5>
-                                                <ul className="space-y-1">
-                                                    {(session.feedback_summary?.strengths || session.strengths || []).map((strength, index) => (
-                                                        <li key={index} className="flex items-start space-x-2 text-sm">
-                                                            <div className="w-1.5 h-1.5 bg-green-500 rounded-full mt-2 flex-shrink-0"></div>
-                                                            <span className="text-gray-700">{strength}</span>
-                                                        </li>
-                                                    ))}
-                                                </ul>
-                                            </div>
-                                        )}
-
-                                        {/* Improvements */}
-                                        {((session.feedback_summary?.improvements && session.feedback_summary.improvements.length > 0) || (session.improvements && session.improvements.length > 0)) && (
-                                            <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
-                                                <h5 className="font-semibold text-orange-800 mb-2 flex items-center">
-                                                    <span className="w-4 h-4 bg-orange-500 text-white rounded-full flex items-center justify-center text-xs mr-2">↗</span>
-                                                    Areas for Improvement
-                                                </h5>
-                                                <ul className="space-y-1">
-                                                    {(session.feedback_summary?.improvements || session.improvements || []).map((improvement, index) => (
-                                                        <li key={index} className="flex items-start space-x-2 text-sm">
-                                                            <div className="w-1.5 h-1.5 bg-orange-500 rounded-full mt-2 flex-shrink-0"></div>
-                                                            <span className="text-gray-700">{improvement}</span>
-                                                        </li>
-                                                    ))}
-                                                </ul>
-                                            </div>
-                                        )}
+                                    <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-r-lg">
+                                        <p className="text-gray-700 leading-relaxed">
+                                            {session.feedback_summary.summary}
+                                        </p>
                                     </div>
                                 </div>
                             )}
 
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {/* Strengths */}
+                                {session.feedback_summary.strengths && session.feedback_summary.strengths.length > 0 && (
+                                    <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                                        <h4 className="font-semibold text-green-800 mb-2 flex items-center">
+                                            <span className="w-4 h-4 bg-green-500 text-white rounded-full flex items-center justify-center text-xs mr-2">✓</span>
+                                            Key Strengths
+                                        </h4>
+                                        <ul className="space-y-1">
+                                            {session.feedback_summary.strengths.map((strength, index) => (
+                                                <li key={index} className="text-green-700 text-sm flex items-start">
+                                                    <span className="text-green-500 mr-2">•</span>
+                                                    {strength}
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                )}
+
+                                {/* Improvements */}
+                                {session.feedback_summary.improvements && session.feedback_summary.improvements.length > 0 && (
+                                    <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                                        <h4 className="font-semibold text-orange-800 mb-2 flex items-center">
+                                            <span className="w-4 h-4 bg-orange-500 text-white rounded-full flex items-center justify-center text-xs mr-2">📈</span>
+                                            Areas for Improvement
+                                        </h4>
+                                        <ul className="space-y-1">
+                                            {session.feedback_summary.improvements.map((improvement, index) => (
+                                                <li key={index} className="text-orange-700 text-sm flex items-start">
+                                                    <span className="text-orange-500 mr-2">•</span>
+                                                    {improvement}
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Feedback */}
+                    <div className="grid grid-cols-1  gap-6 mb-6">
+
+                        <div className="col-span-1">
                             {/* CSSEF Evaluation */}
                             {cssefScores && cssefScores.length > 0 && (
                                 <div className="mb-4">
@@ -737,26 +730,6 @@ export default function SessionDetailPage() {
                                         sessionId={session.id}
                                         onUrlRefresh={() => { }} // No refresh needed for generated audio
                                     />
-                                </div>
-                            )}
-
-
-
-                            {/* Context-Specific Tips */}
-                            {session.full_analysis_results?.feedback?.context_specific_tips && (
-                                <div className="mb-4">
-                                    <h4 className="font-semibold text-green-800 mb-2 flex items-center">
-                                        <span className="w-4 h-4 bg-green-500 text-white rounded-full flex items-center justify-center text-xs mr-2">🎯</span>
-                                        Context-Specific Tips
-                                    </h4>
-                                    <ul className="space-y-2">
-                                        {session.full_analysis_results.feedback.context_specific_tips.map((tip, index) => (
-                                            <li key={index} className="flex items-start space-x-2 text-sm bg-green-50 p-2 rounded border-l-2 border-green-300">
-                                                <div className="w-1.5 h-1.5 bg-green-500 rounded-full mt-2 flex-shrink-0"></div>
-                                                <span className="text-gray-700">{tip}</span>
-                                            </li>
-                                        ))}
-                                    </ul>
                                 </div>
                             )}
                         </div>
