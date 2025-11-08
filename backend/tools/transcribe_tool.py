@@ -17,11 +17,19 @@ class TranscribeToolInput(BaseModel):
         description="Absolute path to the audio/video file to transcribe"
     )
 
+class WordTimestamp(BaseModel):
+    """Schema for individual word with precise timestamps"""
+    word: str = Field(..., description="The transcribed word")
+    start: float = Field(..., description="Start time of word in seconds")
+    end: float = Field(..., description="End time of word in seconds")
+    probability: float = Field(..., description="Confidence score for this word")
+
 class TranscribeSegment(BaseModel):
     """Schema for a transcribed segment with timestamps"""
     start: float = Field(..., description="Start time of segment in seconds")
     end: float = Field(..., description="End time of segment in seconds")
     text: str = Field(..., description="Transcribed text for this segment")
+    words: List[WordTimestamp] = Field(default_factory=list, description="Word-level timestamps within this segment")
 
 class TranscribeToolOutput(BaseModel):
     """Output schema for TranscribeTool"""
@@ -32,6 +40,10 @@ class TranscribeToolOutput(BaseModel):
     segments: List[TranscribeSegment] = Field(
         default_factory=list,
         description="List of transcript segments with timing information"
+    )
+    words: List[WordTimestamp] = Field(
+        default_factory=list,
+        description="List of all words with precise timing information"
     )
 
 class TranscribeTool(BaseTool[TranscribeToolInput, TranscribeToolOutput]):
@@ -89,25 +101,44 @@ class TranscribeTool(BaseTool[TranscribeToolInput, TranscribeToolOutput]):
             "it's like, i mean, yeah, ok so, uh so, so uh, yeah so, you know, it's uh"
         )
         
-        # Run transcription
+        # Run transcription with word-level timestamps
         result = self.model.transcribe(
             file_path,
             initial_prompt=prompt,
-            verbose=False
+            verbose=False,
+            word_timestamps=True  # Enable word-level timestamps
         )
         
-        # Process segments
+        # Process segments and extract word-level data
         segments = []
+        all_words = []
+        
         for segment in result.get("segments", []):
+            # Extract word-level timestamps for this segment
+            segment_words = []
+            if "words" in segment:
+                for word_data in segment["words"]:
+                    word_timestamp = WordTimestamp(
+                        word=word_data["word"].strip(),
+                        start=word_data["start"],
+                        end=word_data["end"],
+                        probability=word_data.get("probability", 1.0)
+                    )
+                    segment_words.append(word_timestamp)
+                    all_words.append(word_timestamp)
+            
+            # Create segment with words
             segments.append(
                 TranscribeSegment(
                     start=segment["start"],
                     end=segment["end"],
-                    text=segment["text"].strip()
+                    text=segment["text"].strip(),
+                    words=segment_words
                 )
             )
         
         return TranscribeToolOutput(
             transcript=result["text"],
-            segments=segments
+            segments=segments,
+            words=all_words
         )

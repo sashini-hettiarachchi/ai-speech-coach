@@ -23,7 +23,6 @@ export default function NewSpeech() {
     goal: "",
     audience_description: "",
     key_points: "",
-    self_improvement_goal: "",
     context: "Academic"
   });
 
@@ -81,8 +80,7 @@ export default function NewSpeech() {
           goal: '',
           audience_description: '',
           context: '',
-          key_points: '',
-          self_improvement_goal: ''
+          key_points: ''
         })
       };
       
@@ -243,25 +241,6 @@ export default function NewSpeech() {
                 />
                 <p className="text-sm text-gray-500 mt-1">
                   List 2-3 main points or sections of your speech
-                </p>
-              </div>
-
-              {/* Self-Improvement Goal Field */}
-              <div className="text-left">
-                <label htmlFor="self_improvement_goal" className="block text-sm font-medium text-gray-700 mb-2">
-                  Self-Improvement Goal (Optional)
-                </label>
-                <textarea
-                  id="self_improvement_goal"
-                  name="self_improvement_goal"
-                  value={formData.self_improvement_goal}
-                  onChange={handleInputChange}
-                  placeholder="What skill are you most trying to improve? (e.g., confidence, storytelling, clarity)"
-                  rows={2}
-                  className="w-full rounded-md border-gray-300 shadow-sm focus:border-black focus:ring-black px-3 py-2"
-                />
-                <p className="text-sm text-gray-500 mt-1">
-                  Pick one or two areas you'd like to focus on improving
                 </p>
               </div>
 

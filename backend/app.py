@@ -7,7 +7,6 @@ import traceback
 import json
 from datetime import datetime
 from typing import Dict, Any, Optional
-from utils.recommendations import give_recommendations
 from utils.constants import CONTEXT_DATA
 
 # Import database models
@@ -41,15 +40,19 @@ from config import (
 # Import MCP Tools
 from tools.transcribe_tool import TranscribeTool
 from tools.audio_prosody_tool import AudioProsodyTool
-from tools.nlp_structure_tool import NLPStructureTool
-from tools.pronunciation_tool import PronunciationTool
-from tools.video_pose_tool import VideoPoseTool
 from tools.filler_detector_tool import FillerDetectorTool
-from tools.scorer_tool import ScorerTool, ScorerToolInput
-from tools.feedback_generator_tool import (
-    FeedbackGeneratorTool,
-    FeedbackGeneratorToolInput,
-)
+
+# Import new CSSEF evaluation tools
+from tools.cssef_c1_topic_choice_tool import CSSEFIC1Tool
+from tools.cssef_c2_purpose_tool import CSSEFIC2Tool
+from tools.cssef_c3_supporting_material_tool import CSSEFIC3Tool
+from tools.cssef_c4_organization_tool import CSSEFIC4Tool
+from tools.cssef_c5_language_tool import CSSEFIC5Tool
+from tools.cssef_c6_vocal_variety_tool import CSSEFIC6Tool
+from tools.cssef_c7_pronunciation_tool import CSSEFIC7Tool
+from tools.speech_revision_tool import SpeechRevisionTool
+from tools.overall_score_tool import OverallScoreTool
+from tools.feedback_summary_tool import FeedbackSummaryTool
 
 # Import utilities for backward compatibility
 from utils.filler_detector import count_filler_words
@@ -124,7 +127,6 @@ def analyze_speech():
         speech_goal = speech.goal
         speech_audience_description = speech.audience_description
         speech_key_points = speech.key_points
-        speech_self_improvement_goal = speech.self_improvement_goal
 
         print(
             f"🎯 Analysis request - User: {auth0_user_id}, Speech: {speech.title}, Context: {context_label}"
@@ -155,85 +157,227 @@ def analyze_speech():
         tools = {
             "transcribe": TranscribeTool(model_size="tiny"),
             "audio_prosody": AudioProsodyTool(),
-            "nlp_structure": NLPStructureTool(),
-            "pronunciation": PronunciationTool(),
             "filler_detector": FillerDetectorTool(),
-            "scorer": ScorerTool(),
-            "feedback_generator": FeedbackGeneratorTool(),
+            # New CSSEF evaluation tools
+            "cssef_c1": CSSEFIC1Tool(),
+            "cssef_c2": CSSEFIC2Tool(),
+            "cssef_c3": CSSEFIC3Tool(),
+            "cssef_c4": CSSEFIC4Tool(),
+            "cssef_c5": CSSEFIC5Tool(),
+            "cssef_c6": CSSEFIC6Tool(),
+            "cssef_c7": CSSEFIC7Tool(),
+            "speech_revision": SpeechRevisionTool(),
+            "overall_score": OverallScoreTool(),
+            "feedback_summary": FeedbackSummaryTool(),
         }
 
         # Check if the file is a video
         _, ext = os.path.splitext(temp_filepath)
-        is_video = ext.lower() in [".mp4", ".avi", ".mov", ".mkv", ".webm"]
-        if is_video:
-            tools["video_pose"] = VideoPoseTool()
 
         # Step 1: Transcribe audio
         print("🗣️ Starting transcription...")
         transcription_result = tools["transcribe"]({"file_path": temp_filepath})
         transcript = transcription_result.transcript
         segments = transcription_result.segments
+        words = transcription_result.words  # NEW: Extract word-level timestamps
         print("✅ Transcription completed", transcript, segments)
 
-        # Step 2: Analyze audio prosody
+        # Step 2: Analyze audio prosody with word-level timestamps
         print("🎵 Analyzing audio prosody...")
-        prosody_result = tools["audio_prosody"](
-            {"file_path": temp_filepath, "transcript": transcript}
-        )
+        # Prepare word timestamps for prosody analysis
+        word_timestamps_for_prosody = [
+            {
+                "word": word.word,
+                "start": word.start,
+                "end": word.end,
+                "probability": word.probability
+            }
+            for word in words
+        ]
+        
+        prosody_result = tools["audio_prosody"]({
+            "file_path": temp_filepath, 
+            "transcript": transcript,
+            "word_timestamps": word_timestamps_for_prosody  # NEW: Pass word timestamps
+        })
         print("✅ Audio prosody analysis completed")
 
         filler_result = tools["filler_detector"](
-            {"transcript": transcript, "use_llm": True}
+            {"transcript": transcript}
         )
-        filler_analysis = filler_result.dict()
+        
+        filler_analysis = filler_result.model_dump()
         print(
-            f"✅ Detected {filler_result.total_fillers} filler words ({filler_result.filler_percentage:.1f}%), filler_result: {filler_result}"
+            f"✅ Detected {filler_result.total_fillers} filler words ({filler_result.filler_percentage:.1f}%)"
         )
 
-        # Step 7: Generate feedback
-        print("💭 Generating general feedback...")
-        if context_label and context_label.lower() != "general":
-            feedback_input = {
-                "context_label": context_label,
-                "speech_duration": (
-                    prosody_result.pause_events[-1].end_time
-                    if prosody_result.pause_events
-                    else 60.0
-                ),
-                "words_per_minute": prosody_result.words_per_minute,
-                "transcript": transcript,  # Include transcript for LLM-based feedback
-                "filler_analysis": filler_analysis,  # Include detailed filler analysis
-                "prosody_results": prosody_result.dict(),
-                "speech_title": speech_title,
-                "speech_goal": speech_goal,
-                "speech_audience_description": speech_audience_description,
-                "speech_key_points": speech_key_points,
-                "speech_self_improvement_goal": speech_self_improvement_goal,
+        # NEW: Step 3-9: Individual CSSEF Competency Evaluations
+        print("🎯 Starting CSSEF competency evaluations...")
+        
+        # Calculate speech duration for evaluations
+        speech_duration = (
+            prosody_result.pause_events[-1].end_time
+            if prosody_result.pause_events
+            else 60.0
+        )
+        
+        # Step 3: CSSEF C1 - Topic Choice
+        print("📝 Evaluating C1: Topic Choice...")
+        c1_result = tools["cssef_c1"]({
+            "transcript": transcript,
+            "context": context_label,
+            "speech_duration": speech_duration,
+            "speech_title": speech_title,
+            "speech_goal": speech_goal,
+            "audience_description": speech_audience_description,
+            "key_points": speech_key_points
+        })
+        
+        # Step 4: CSSEF C2 - Purpose Communication
+        print("🎯 Evaluating C2: Purpose Communication...")
+        c2_result = tools["cssef_c2"]({
+            "transcript": transcript,
+            "context": context_label,
+            "speech_goal": speech_goal,
+            "audience_description": speech_audience_description,
+            "speech_title": speech_title
+        })
+        
+        # Step 5: CSSEF C3 - Supporting Material
+        print("📚 Evaluating C3: Supporting Material...")
+        c3_result = tools["cssef_c3"]({
+            "transcript": transcript,
+            "context": context_label,
+            "audience_description": speech_audience_description,
+            "speech_title": speech_title
+        })
+        
+        # Step 6: CSSEF C4 - Organization
+        print("🏗️ Evaluating C4: Organization...")
+        c4_result = tools["cssef_c4"]({
+            "transcript": transcript,
+            "context": context_label,
+            "speech_goal": speech_goal,
+            "audience_description": speech_audience_description,
+            "key_points": speech_key_points
+        })
+        
+        # Step 7: CSSEF C5 - Language Use
+        print("💬 Evaluating C5: Language Use...")
+        c5_result = tools["cssef_c5"]({
+            "transcript": transcript,
+            "context": context_label,
+            "audience_description": speech_audience_description,
+            "filler_analysis": filler_analysis
+        })
+        
+        # Step 8: CSSEF C6 - Vocal Variety (requires prosody data)
+        print("🎵 Evaluating C6: Vocal Variety...")
+        c6_result = tools["cssef_c6"]({
+            "transcript": transcript,
+            "prosody_results": prosody_result.dict(),
+            "context": context_label,
+            "speech_duration": speech_duration,
+            "words_per_minute": prosody_result.words_per_minute
+        })
+        
+        # Step 9: CSSEF C7 - Pronunciation & Grammar
+        print("🗣️ Evaluating C7: Pronunciation & Grammar...")
+        c7_result = tools["cssef_c7"]({
+            "transcript": transcript,
+            "context": context_label,
+            "audience_description": speech_audience_description,
+            "filler_analysis": filler_analysis
+        })
+        
+        # Compile CSSEF results
+        cssef_scores = {
+            "c1_topic_choice": {
+                "score": c1_result.score,
+                "comment": c1_result.justification,
+                "improvement": c1_result.improvement_suggestions
+            },
+            "c2_purpose": {
+                "score": c2_result.score,
+                "comment": c2_result.justification,
+                "improvement": c2_result.improvement_suggestions
+            },
+            "c3_supporting": {
+                "score": c3_result.score,
+                "comment": c3_result.justification,
+                "improvement": c3_result.improvement_suggestions
+            },
+            "c4_organization": {
+                "score": c4_result.score,
+                "comment": c4_result.justification,
+                "improvement": c4_result.improvement_suggestions
+            },
+            "c5_language": {
+                "score": c5_result.score,
+                "comment": c5_result.justification,
+                "improvement": c5_result.improvement_suggestions
+            },
+            "c6_vocal_variety": {
+                "score": c6_result.score,
+                "comment": c6_result.justification,
+                "improvement": c6_result.improvement_suggestions
+            },
+            "c7_pronunciation": {
+                "score": c7_result.score,
+                "comment": c7_result.justification,
+                "improvement": c7_result.improvement_suggestions
             }
-
-            # Generate context-aware feedback
-            feedback_result = tools["feedback_generator"](feedback_input)
-        else:
-            tool_input = {
-                "context_label": None,
-                "speech_duration": (
-                    prosody_result.pause_events[-1].end_time
-                    if prosody_result.pause_events
-                    else 60.0
-                ),
-                "words_per_minute": prosody_result.words_per_minute,
-                "transcript":transcript,
-                "filler_analysis":filler_analysis,
-                "prosody_results":prosody_result.dict(),
-                "speech_title" : speech_title,  # No user-provided title
-                "speech_goal":None,  # No user-provided goal
-                "speech_audience_description":None,  # No user-provided audience description
-                "speech_key_points":None,  # No user-provided key points
-                "speech_self_improvement_goal":None,  # No user-provided improvement goal
-            }
-
-            feedback_result = tools["feedback_generator"](tool_input)
-        print("✅ Feedback generation completed")
+        }
+        
+        print("✅ All CSSEF competency evaluations completed")
+        
+        # Step 10: Calculate Overall Score
+        print("📊 Calculating overall score...")
+        overall_result = tools["overall_score"]({
+            "cssef_scores": cssef_scores,
+            "context": context_label
+        })
+        
+        # Step 11: Generate Feedback Summary
+        print("📝 Generating AI-powered feedback summary...")
+        feedback_result = tools["feedback_summary"]({
+            "cssef_scores": cssef_scores,
+            "overall_score": overall_result.overall_score,
+            "context": context_label,
+            "speech_duration": speech_duration,
+            "words_per_minute": prosody_result.words_per_minute,
+            "filler_percentage": filler_result.filler_percentage,
+            "transcript": transcript,
+            "speech_title": speech_title,
+            "speech_goal": speech_goal
+        })
+        
+        # Extract results for database storage
+        overall_score = overall_result.overall_score
+        feedback_summary = feedback_result.feedback_summary.model_dump()  # Convert Pydantic model to dict
+        
+        # Step 12: Generate Revised Speech
+        print("✨ Generating revised speech text and audio...")
+        
+        # Calculate session number for file naming
+        existing_sessions_count = Session.query.filter_by(speech_id=speech.id).count()
+        session_number = existing_sessions_count + 1
+        
+        revision_result = tools["speech_revision"]({
+            "original_transcript": transcript,
+            "context": context_label,
+            "speech_goal": speech_goal,
+            "audience_description": speech_audience_description,
+            "key_points": speech_key_points,
+            "cssef_feedback": cssef_scores,
+            "filler_analysis": filler_analysis,
+            "session_id": session_number
+        })
+        
+        print("✅ Speech revision completed")
+        
+        # Extract revised speech text from revision result
+        revised_speech_text = revision_result.revised_text
 
         # Save session to database
         try:
@@ -249,98 +393,21 @@ def analyze_speech():
                     500,
                 )
 
-            # Generate feedback summary as JSON structure from analysis results
-            feedback_summary = {
-                "strengths": feedback_result.summary.strengths,
-                "improvements": feedback_result.summary.improvements,
-            }
+            # Use the new results from individual CSSEF tools and overall scoring
+            # feedback_summary and overall_score are already calculated
+            # revised_speech_text is from the revision tool
+            # cssef_scores contains all individual scores
 
-            revised_speech_text = feedback_result.revised_speech_text
-            context_data = CONTEXT_DATA
+            # Extract individual scores for database storage
+            c1_score = cssef_scores["c1_topic_choice"]["score"]
+            c2_score = cssef_scores["c2_purpose"]["score"]
+            c3_score = cssef_scores["c3_supporting"]["score"]
+            c4_score = cssef_scores["c4_organization"]["score"]
+            c5_score = cssef_scores["c5_language"]["score"]
+            c6_score = cssef_scores["c6_vocal_variety"]["score"]
+            c7_score = cssef_scores["c7_pronunciation"]["score"]
 
-            # Extract CSSEF scores from feedback generator (1-5 scale)
-            cssef_eval = feedback_result.cssef_evaluation
-            c1_score = cssef_eval.get(
-                "C1_topic_choice", type("default", (), {"score": 3.0})
-            ).score
-            c2_score = cssef_eval.get(
-                "C2_purpose", type("default", (), {"score": 3.0})
-            ).score
-            c3_score = cssef_eval.get(
-                "C3_supporting_material", type("default", (), {"score": 3.0})
-            ).score
-            c4_score = cssef_eval.get(
-                "C4_organization", type("default", (), {"score": 3.0})
-            ).score
-            c5_score = cssef_eval.get(
-                "C5_language_use", type("default", (), {"score": 3.0})
-            ).score
-            c6_score = cssef_eval.get(
-                "C6_vocal_variety", type("default", (), {"score": 3.0})
-            ).score
-            c7_score = cssef_eval.get(
-                "C7_pronunciation_and_grammar", type("default", (), {"score": 3.0})
-            ).score
-
-            # Calculate weighted overall score using context weights
-            if (
-                speech.context
-                and speech.context.lower() in context_data["CONTEXT_SCORES"]
-            ):
-                # Use context-specific weighted calculation
-                speech_context = speech.context.lower()
-                context_weights = context_data["CONTEXT_SCORES"][speech_context]
-
-                # Weighted average using context-specific weights (excluding C8 since we don't use it)
-                total_weight = (
-                    context_weights["C1_topic_choice"]
-                    + context_weights["C2_purpose"]
-                    + context_weights["C3_supporting_material"]
-                    + context_weights["C4_organization"]
-                    + context_weights["C5_language_use"]
-                    + context_weights["C6_vocal_variety"]
-                    + context_weights["C7_pronunciation_and_grammar"]
-                )
-
-                # Normalize weights to sum to 1.0 (excluding C8)
-                w1 = context_weights["C1_topic_choice"] / total_weight
-                w2 = context_weights["C2_purpose"] / total_weight
-                w3 = context_weights["C3_supporting_material"] / total_weight
-                w4 = context_weights["C4_organization"] / total_weight
-                w5 = context_weights["C5_language_use"] / total_weight
-                w6 = context_weights["C6_vocal_variety"] / total_weight
-                w7 = context_weights["C7_pronunciation_and_grammar"] / total_weight
-
-                # Calculate weighted sum
-                overall_score_1_5 = (
-                    c1_score * w1
-                    + c2_score * w2
-                    + c3_score * w3
-                    + c4_score * w4
-                    + c5_score * w5
-                    + c6_score * w6
-                    + c7_score * w7
-                )
-
-                calculation_method = f"weighted ({speech_context} context)"
-            else:
-                # Simple mean for general context (no specific context or unknown context)
-                overall_score_1_5 = (
-                    c1_score
-                    + c2_score
-                    + c3_score
-                    + c4_score
-                    + c5_score
-                    + c6_score
-                    + c7_score
-                ) / 7.0
-                speech_context = "general (mean)"
-                calculation_method = "simple mean (no context)"
-
-            # Keep overall score in 1-5 scale as floating point
-            overall_score = min(5.0, max(1.0, overall_score_1_5))  # Clamp between 1-5
-
-            # Keep individual CSSEF scores in 1-5 scale (no conversion needed)
+            # Ensure scores are within 1-5 range
             c1_score_final = min(5.0, max(1.0, c1_score))
             c2_score_final = min(5.0, max(1.0, c2_score))
             c3_score_final = min(5.0, max(1.0, c3_score))
@@ -353,7 +420,7 @@ def analyze_speech():
                 f"🎯 CSSEF Scores (1-5): C1={c1_score_final:.2f}, C2={c2_score_final:.2f}, C3={c3_score_final:.2f}, C4={c4_score_final:.2f}, C5={c5_score_final:.2f}, C6={c6_score_final:.2f}, C7={c7_score_final:.2f}"
             )
             print(f"📊 Overall Score: {overall_score:.3f} (1-5 scale)")
-            print(f"🏷️ Calculation: {calculation_method}")
+            print(f"🏷️ Calculation: weighted with individual CSSEF tool evaluations")
 
             # Calculate the session number for this speech
             existing_sessions_count = Session.query.filter_by(
@@ -367,14 +434,10 @@ def analyze_speech():
                 session_number=session_number,
                 title=session_title,
                 media_url=gcs_signed_url,
-                media_type="video" if is_video else "audio",
+                media_type="audio",
                 original_filename=filename,
                 transcript=transcript,
-                feedback=(
-                    feedback_result.feedback
-                    if hasattr(feedback_result, "feedback")
-                    else str(feedback_result)
-                ),
+                feedback="CSSEF evaluation completed with individual competency analysis",
                 # Filler Word Analysis
                 filler_word_count=filler_result.total_fillers,
                 filler_word_percentage=filler_result.filler_percentage,
@@ -390,84 +453,34 @@ def analyze_speech():
                 pitch_events=[event.dict() for event in prosody_result.pitch_events],
                 volume_events=[event.dict() for event in prosody_result.volume_events],
                 speed_events=[event.dict() for event in prosody_result.speed_events],
-                duration_seconds=(
-                    prosody_result.pause_events[-1].end_time
-                    if prosody_result.pause_events
-                    else 60.0
-                ),
+                duration_seconds=speech_duration,
                 revised_speech_text=revised_speech_text,
+                revised_speech_audio_url=revision_result.audio_gcs_url,
                 # New Feedback Structure
                 feedback_summary=feedback_summary,
                 overall_score=overall_score,
-                # CSSEF Competency Scores (C1-C7) using feedback generator data
+                # CSSEF Competency Scores (C1-C7) using individual tool evaluations
                 c1_topic_choice_score=c1_score_final,
-                c1_topic_choice_comment=cssef_eval.get(
-                    "C1_topic_choice",
-                    type("default", (), {"comment": "Good topic choice"}),
-                ).comment,
-                c1_topic_choice_improvement=cssef_eval.get(
-                    "C1_topic_choice",
-                    type("default", (), {"improvement": "Keep practicing"}),
-                ).improvement,
+                c1_topic_choice_comment=cssef_scores["c1_topic_choice"]["comment"],
+                c1_topic_choice_improvement=cssef_scores["c1_topic_choice"]["improvement"],
                 c2_purpose_score=c2_score_final,
-                c2_purpose_comment=cssef_eval.get(
-                    "C2_purpose", type("default", (), {"comment": "Clear purpose"})
-                ).comment,
-                c2_purpose_improvement=cssef_eval.get(
-                    "C2_purpose",
-                    type("default", (), {"improvement": "Keep practicing"}),
-                ).improvement,
+                c2_purpose_comment=cssef_scores["c2_purpose"]["comment"],
+                c2_purpose_improvement=cssef_scores["c2_purpose"]["improvement"],
                 c3_supporting_score=c3_score_final,
-                c3_supporting_comment=cssef_eval.get(
-                    "C3_supporting_material",
-                    type("default", (), {"comment": "Good supporting material"}),
-                ).comment,
-                c3_supporting_improvement=cssef_eval.get(
-                    "C3_supporting_material",
-                    type("default", (), {"improvement": "Keep practicing"}),
-                ).improvement,
+                c3_supporting_comment=cssef_scores["c3_supporting"]["comment"],
+                c3_supporting_improvement=cssef_scores["c3_supporting"]["improvement"],
                 c4_organization_score=c4_score_final,
-                c4_organization_comment=cssef_eval.get(
-                    "C4_organization",
-                    type("default", (), {"comment": "Well organized"}),
-                ).comment,
-                c4_organization_improvement=cssef_eval.get(
-                    "C4_organization",
-                    type("default", (), {"improvement": "Keep practicing"}),
-                ).improvement,
+                c4_organization_comment=cssef_scores["c4_organization"]["comment"],
+                c4_organization_improvement=cssef_scores["c4_organization"]["improvement"],
                 c5_language_score=c5_score_final,
-                c5_language_comment=cssef_eval.get(
-                    "C5_language_use",
-                    type("default", (), {"comment": "Appropriate language"}),
-                ).comment,
-                c5_language_improvement=cssef_eval.get(
-                    "C5_language_use",
-                    type("default", (), {"improvement": "Keep practicing"}),
-                ).improvement,
+                c5_language_comment=cssef_scores["c5_language"]["comment"],
+                c5_language_improvement=cssef_scores["c5_language"]["improvement"],
                 c6_vocal_variety_score=c6_score_final,
-                c6_vocal_variety_comment=cssef_eval.get(
-                    "C6_vocal_variety",
-                    type(
-                        "default",
-                        (),
-                        {
-                            "comment": f"Speaking pace of {prosody_result.words_per_minute:.1f} WPM"
-                        },
-                    ),
-                ).comment,
-                c6_vocal_variety_improvement=cssef_eval.get(
-                    "C6_vocal_variety",
-                    type("default", (), {"improvement": "Keep practicing"}),
-                ).improvement,
+                c6_vocal_variety_comment=cssef_scores["c6_vocal_variety"]["comment"],
+                c6_vocal_variety_improvement=cssef_scores["c6_vocal_variety"]["improvement"],
                 c7_pronunciation_score=c7_score_final,
-                c7_pronunciation_comment=cssef_eval.get(
-                    "C7_pronunciation_and_grammar",
-                    type("default", (), {"comment": "Clear pronunciation"}),
-                ).comment,
-                c7_pronunciation_improvement=cssef_eval.get(
-                    "C7_pronunciation_and_grammar",
-                    type("default", (), {"improvement": "Keep practicing"}),
-                ).improvement,
+                c7_pronunciation_comment=cssef_scores["c7_pronunciation"]["comment"],
+                c7_pronunciation_improvement=cssef_scores["c7_pronunciation"]["improvement"],
             )
 
             db.session.add(session)
@@ -477,41 +490,21 @@ def analyze_speech():
 
         except Exception as db_error:
             print(f"⚠️ Database save error: {str(db_error)}")
+            print(f"🔍 Error traceback: {traceback.format_exc()}")
             db.session.rollback()
-            # Continue without failing the request
+            # Set session to None so we know it failed
+            session = None
 
         # Prepare response
         response = {
             "status": "success",
             "timestamp": datetime.now().isoformat(),
-            "request": {
-                "user_id": auth0_user_id,
-                "speech_id": speech.id,
-                "speech_title": speech.title,
-                # "domain": domain_id,
-                "context_label": context_label,
-                "file_name": filename,
-            },
-            "analysis": {
-                "transcript": transcript,
-                "revised_speech_text": feedback_result.revised_speech_text,
-                "segments": [segment.dict() for segment in segments],
-                "audio_prosody": prosody_result.dict(),
-                # "structure": structure_result.dict(),
-                # "pronunciation": pronunciation_result.dict(),
-                "filler_analysis": filler_analysis,
-                # "scores": score_result.dict(),
-                "feedback": feedback_result.dict(),
-            },
+
         }
 
         # Add session ID if successfully saved
-        if "session" in locals():
+        if "session" in locals() and session is not None and hasattr(session, 'id'):
             response["session_id"] = session.id
-
-        # Add video analysis if available
-        # if video_result:
-        #     response["analysis"]["video"] = video_result.dict()
 
         # Clean up temporary uploaded file
         try:
@@ -546,12 +539,18 @@ def health_check():
         tools = {
             "transcribe": TranscribeTool(model_size="tiny"),
             "audio_prosody": AudioProsodyTool(),
-            "nlp_structure": NLPStructureTool(),
-            "pronunciation": PronunciationTool(),
-            "video_pose": VideoPoseTool(),
             "filler_detector": FillerDetectorTool(),
-            "scorer": ScorerTool(),
-            "feedback_generator": FeedbackGeneratorTool(),
+            # New CSSEF evaluation tools
+            "cssef_c1": CSSEFIC1Tool(),
+            "cssef_c2": CSSEFIC2Tool(),
+            "cssef_c3": CSSEFIC3Tool(),
+            "cssef_c4": CSSEFIC4Tool(),
+            "cssef_c5": CSSEFIC5Tool(),
+            "cssef_c6": CSSEFIC6Tool(),
+            "cssef_c7": CSSEFIC7Tool(),
+            "speech_revision": SpeechRevisionTool(),
+            "overall_score": OverallScoreTool(),
+            "feedback_summary": FeedbackSummaryTool(),
         }
 
         # Check each tool and collect statuses
@@ -630,8 +629,16 @@ def get_options():
             "pronunciation_tool",
             "video_pose_tool",
             "filler_detector_tool",
-            "scorer_tool",
-            "feedback_generator_tool",
+            "cssef_c1_topic_choice_tool",
+            "cssef_c2_purpose_tool",
+            "cssef_c3_supporting_material_tool",
+            "cssef_c4_organization_tool",
+            "cssef_c5_language_tool",
+            "cssef_c6_vocal_variety_tool",
+            "cssef_c7_pronunciation_tool",
+            "speech_revision_tool",
+            "overall_score_tool",
+            "feedback_summary_tool",
         ],
     }
 
