@@ -261,4 +261,43 @@ export const sessionApi = {
   },
 };
 
-export default { speechApi, sessionApi };
+// User PRPSA Assessment API utilities
+export const userPRPSAApi = {
+  // Submit user PRPSA assessment (initial or post_experimental)
+  submitAssessment: async (assessmentType: 'initial' | 'post_experimental', responses: Record<string, number>): Promise<any> => {
+    const response = await authenticatedFetch(`/api/v1/users/prpsa/${assessmentType}`, {
+      method: 'POST',
+      data: { responses },
+    });
+    return response.data;
+  },
+
+  // Get user PRPSA assessment (initial or post_experimental)
+  getAssessment: async (assessmentType: 'initial' | 'post_experimental'): Promise<any> => {
+    const response = await authenticatedFetch(`/api/v1/users/prpsa/${assessmentType}`);
+    return response.data;
+  },
+
+  // Update user PRPSA assessment (initial or post_experimental)
+  updateAssessment: async (assessmentType: 'initial' | 'post_experimental', responses: Record<string, number>): Promise<any> => {
+    const response = await authenticatedFetch(`/api/v1/users/prpsa/${assessmentType}`, {
+      method: 'PUT',
+      data: { responses },
+    });
+    return response.data;
+  },
+
+  // Get all user PRPSA assessments
+  getAllAssessments: async (): Promise<any> => {
+    const response = await authenticatedFetch('/api/v1/users/prpsa');
+    return response.data;
+  },
+
+  // Get comparison between initial and post experimental assessments
+  getComparison: async (): Promise<any> => {
+    const response = await authenticatedFetch('/api/v1/users/prpsa/comparison');
+    return response.data;
+  },
+};
+
+export default { speechApi, sessionApi, userPRPSAApi };
