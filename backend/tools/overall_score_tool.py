@@ -52,13 +52,13 @@ class OverallScoreTool(BaseTool[OverallScoreToolInput, OverallScoreToolOutput]):
         
         # Default weights if context data not available
         self.default_weights = {
-            "C1_topic_choice": 0.14,
-            "C2_purpose": 0.14,
-            "C3_supporting_material": 0.14,
-            "C4_organization": 0.14,
-            "C5_language_use": 0.14,
-            "C6_vocal_variety": 0.15,
-            "C7_pronunciation_and_grammar": 0.15
+            "C1_topic_choice": 1/7,
+            "C2_purpose": 1/7,
+            "C3_supporting_material": 1/7,
+            "C4_organization": 1/7,
+            "C5_language_use": 1/7,
+            "C6_vocal_variety": 1/7,
+            "C7_pronunciation_and_grammar": 1/7
         }
         
         print("Overall Score Tool initialized successfully")
@@ -143,7 +143,7 @@ class OverallScoreTool(BaseTool[OverallScoreToolInput, OverallScoreToolOutput]):
         if total_weight > 0:
             overall_score = total_score / total_weight
         else:
-            overall_score = 3.0  # Default score if no valid scores
+            overall_score = 0.0  # Default score if no valid scores
         
         # Ensure score is within 1-5 range
         overall_score = max(1.0, min(5.0, overall_score))

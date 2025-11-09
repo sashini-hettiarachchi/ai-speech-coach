@@ -558,7 +558,7 @@ export default function SessionDetailPage() {
                         <div className="mb-6 bg-white border border-gray-200 rounded-lg p-6">
                             <h3 className="text-xl font-bold text-gray-900 mb-4 flex items-center">
                                 <span className="w-6 h-6 bg-green-500 text-white rounded-full flex items-center justify-center text-xs mr-2">📝</span>
-                                Executive Summary
+                                Overall Summary
                             </h3>
                             
                             {session.feedback_summary.summary && (

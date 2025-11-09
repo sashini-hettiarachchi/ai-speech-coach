@@ -10,7 +10,7 @@ from typing import Dict, Any, Optional
 from utils.constants import CONTEXT_DATA
 
 # Import database models
-from models import db, Speech, Session, PRPSAAssessment
+from models import db, Speech, Session, PRPSAAssessment, UserPRPSAAssessment
 
 # Import authentication utilities
 from auth0_utils import (
@@ -1084,6 +1084,241 @@ def update_prpsa_assessment(speech_id):
 
     except Exception as e:
         db.session.rollback()
+        return jsonify({"error": str(e)}), 500
+
+
+# =============================================
+# User PRPSA Assessment Endpoints
+# =============================================
+
+@app.route("/api/v1/users/prpsa/<assessment_type>", methods=["POST"])
+@auth0_required
+def submit_user_prpsa_assessment(assessment_type):
+    """Submit user PRPSA assessment (initial or post_experimental)"""
+    try:
+        user = get_current_user()
+        
+        # Validate assessment type
+        if assessment_type not in ['initial', 'post_experimental']:
+            return jsonify({"error": "Invalid assessment type. Must be 'initial' or 'post_experimental'"}), 400
+        
+        # Check if assessment already exists
+        existing_assessment = UserPRPSAAssessment.query.filter_by(
+            user_id=user.id, 
+            assessment_type=assessment_type
+        ).first()
+        
+        if existing_assessment:
+            return jsonify({
+                "error": f"{assessment_type.replace('_', ' ').title()} PRPSA assessment already completed"
+            }), 400
+        
+        # Get request data
+        data = request.get_json()
+        responses = data.get("responses")
+        
+        if not responses:
+            return jsonify({"error": "Missing PRPSA responses"}), 400
+        
+        # Validate responses
+        for i in range(1, 35):
+            key = f"q{i}"
+            if key not in responses:
+                return jsonify({"error": f"Missing response for question {i}"}), 400
+            
+            try:
+                value = int(responses[key])
+                if not (1 <= value <= 5):
+                    return jsonify({"error": f"Invalid response for question {i}: must be between 1 and 5"}), 400
+                responses[key] = value
+            except (ValueError, TypeError):
+                return jsonify({"error": f"Invalid response for question {i}: must be a number"}), 400
+        
+        # Create user PRPSA assessment
+        try:
+            user_prpsa = UserPRPSAAssessment.from_responses(user.id, assessment_type, responses)
+            db.session.add(user_prpsa)
+            db.session.commit()
+            
+            return jsonify({
+                "status": "success",
+                "message": f"{assessment_type.replace('_', ' ').title()} PRPSA assessment submitted successfully",
+                "assessment": user_prpsa.to_dict()
+            }), 201
+            
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/v1/users/prpsa/<assessment_type>", methods=["GET"])
+@auth0_required
+def get_user_prpsa_assessment(assessment_type):
+    """Get user PRPSA assessment (initial or post_experimental)"""
+    try:
+        user = get_current_user()
+        
+        # Validate assessment type
+        if assessment_type not in ['initial', 'post_experimental']:
+            return jsonify({"error": "Invalid assessment type. Must be 'initial' or 'post_experimental'"}), 400
+        
+        assessment = UserPRPSAAssessment.query.filter_by(
+            user_id=user.id, 
+            assessment_type=assessment_type
+        ).first()
+        
+        if not assessment:
+            return jsonify({"error": f"{assessment_type.replace('_', ' ').title()} PRPSA assessment not found"}), 404
+        
+        return jsonify({
+            "status": "success",
+            "assessment": assessment.to_dict()
+        })
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/v1/users/prpsa/<assessment_type>", methods=["PUT"])
+@auth0_required
+def update_user_prpsa_assessment(assessment_type):
+    """Update user PRPSA assessment (initial or post_experimental)"""
+    try:
+        user = get_current_user()
+        
+        # Validate assessment type
+        if assessment_type not in ['initial', 'post_experimental']:
+            return jsonify({"error": "Invalid assessment type. Must be 'initial' or 'post_experimental'"}), 400
+        
+        assessment = UserPRPSAAssessment.query.filter_by(
+            user_id=user.id, 
+            assessment_type=assessment_type
+        ).first()
+        
+        if not assessment:
+            return jsonify({"error": f"{assessment_type.replace('_', ' ').title()} PRPSA assessment not found"}), 404
+        
+        # Get request data
+        data = request.get_json()
+        responses = data.get("responses")
+        
+        if not responses:
+            return jsonify({"error": "Missing PRPSA responses"}), 400
+        
+        # Validate responses
+        for i in range(1, 35):
+            key = f"q{i}"
+            if key not in responses:
+                return jsonify({"error": f"Missing response for question {i}"}), 400
+            
+            try:
+                value = int(responses[key])
+                if not (1 <= value <= 5):
+                    return jsonify({"error": f"Invalid response for question {i}: must be between 1 and 5"}), 400
+                responses[key] = value
+            except (ValueError, TypeError):
+                return jsonify({"error": f"Invalid response for question {i}: must be a number"}), 400
+        
+        # Update responses
+        for i in range(1, 35):
+            setattr(assessment, f"q{i}", responses[f"q{i}"])
+        
+        # Recalculate score
+        total_score, anxiety_level = UserPRPSAAssessment.calculate_score(responses)
+        assessment.total_score = total_score
+        assessment.anxiety_level = anxiety_level
+        assessment.completed_at = datetime.utcnow()
+        
+        db.session.commit()
+        
+        return jsonify({
+            "status": "success",
+            "message": f"{assessment_type.replace('_', ' ').title()} PRPSA assessment updated successfully",
+            "assessment": assessment.to_dict()
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/v1/users/prpsa", methods=["GET"])
+@auth0_required
+def get_all_user_prpsa_assessments():
+    """Get all user PRPSA assessments (initial and post_experimental)"""
+    try:
+        user = get_current_user()
+        
+        assessments = UserPRPSAAssessment.query.filter_by(user_id=user.id).all()
+        
+        result = {
+            "status": "success",
+            "assessments": {}
+        }
+        
+        for assessment in assessments:
+            result["assessments"][assessment.assessment_type] = assessment.to_dict()
+        
+        # Add completion status for easy frontend checking
+        result["completion_status"] = {
+            "initial_completed": "initial" in result["assessments"],
+            "post_experimental_completed": "post_experimental" in result["assessments"]
+        }
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/v1/users/prpsa/comparison", methods=["GET"])
+@auth0_required
+def get_user_prpsa_comparison():
+    """Get comparison between initial and post experimental PRPSA assessments"""
+    try:
+        user = get_current_user()
+        
+        initial = UserPRPSAAssessment.query.filter_by(
+            user_id=user.id, 
+            assessment_type="initial"
+        ).first()
+        
+        post_experimental = UserPRPSAAssessment.query.filter_by(
+            user_id=user.id, 
+            assessment_type="post_experimental"
+        ).first()
+        
+        if not initial or not post_experimental:
+            return jsonify({
+                "error": "Both initial and post experimental assessments are required for comparison"
+            }), 400
+        
+        # Calculate improvement
+        score_change = initial.total_score - post_experimental.total_score  # Positive = improvement (lower anxiety)
+        percentage_change = ((initial.total_score - post_experimental.total_score) / initial.total_score) * 100
+        
+        return jsonify({
+            "status": "success",
+            "comparison": {
+                "initial": initial.to_dict(include_responses=False),
+                "post_experimental": post_experimental.to_dict(include_responses=False),
+                "improvement": {
+                    "score_change": score_change,
+                    "percentage_change": round(percentage_change, 2),
+                    "anxiety_level_change": {
+                        "from": initial.anxiety_level,
+                        "to": post_experimental.anxiety_level
+                    },
+                    "improved": score_change > 0,
+                    "interpretation": "Lower scores indicate reduced anxiety" if score_change > 0 else "Higher scores indicate increased anxiety" if score_change < 0 else "No significant change in anxiety levels"
+                }
+            }
+        })
+        
+    except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 

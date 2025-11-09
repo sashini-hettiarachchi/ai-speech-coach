@@ -6,6 +6,7 @@ import { useRouter, useParams } from 'next/navigation';
 import Link from "next/link";
 import { toast, Toaster } from "react-hot-toast";
 import { speechApi, sessionApi } from "../../../lib/api";
+import PerformanceTrends from "../../../components/PerformanceTrends";
 
 interface Speech {
   id: string;
@@ -728,6 +729,13 @@ export default function SpeechDetailPage() {
             </div>
           )}
         </div>
+
+        {/* Performance Trends Section */}
+        {sessions.length > 0 && (
+          <div className="mt-8">
+            <PerformanceTrends sessions={sessions} speech={speech} />
+          </div>
+        )}
 
         {/* PRPSA Completion Modal */}
         {showCompletionModal && (
