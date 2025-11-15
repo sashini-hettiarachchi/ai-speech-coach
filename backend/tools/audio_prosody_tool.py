@@ -14,6 +14,7 @@ import os
 import numpy as np
 import parselmouth
 from parselmouth.praat import call
+import math
 from tools.base import BaseTool
 
 # ---------- SCHEMAS ----------
@@ -163,6 +164,33 @@ class AudioProsodyTool(BaseTool[AudioProsodyToolInput, AudioProsodyToolOutput]):
     SPEED_FASTER_RATIO = 1.5
     SPEED_SLOWER_RATIO = 0.67
     SPEED_SD_THRESHOLD = 1.0
+
+    @staticmethod
+    def _handle_nan_inf(value, default=0.0):
+        """
+        Handle NaN and infinity values by replacing them with sensible defaults.
+        
+        Args:
+            value: The value to check and potentially replace
+            default: Default value to use if value is NaN or infinite
+            
+        Returns:
+            Valid numeric value
+        """
+        if value is None:
+            return default
+        
+        try:
+            # Convert to float if not already
+            value = float(value)
+            
+            # Check for NaN or infinity
+            if math.isnan(value) or math.isinf(value):
+                return default
+            
+            return value
+        except (ValueError, TypeError):
+            return default
     
     def run(self, inputs: AudioProsodyToolInput) -> AudioProsodyToolOutput:
         """
@@ -194,7 +222,13 @@ class AudioProsodyTool(BaseTool[AudioProsodyToolInput, AudioProsodyToolOutput]):
         volume_mean = call(intensity, "Get mean", 0, 0)
         volume_std = self._get_intensity_std(intensity)
         
-        # Fix any invalid values
+        # Fix any invalid values using NaN/Inf handler
+        pitch_mean = self._handle_nan_inf(pitch_mean, 100)
+        pitch_std = self._handle_nan_inf(pitch_std, 20)
+        volume_mean = self._handle_nan_inf(volume_mean, 60)
+        volume_std = self._handle_nan_inf(volume_std, 5)
+        
+        # Additional validation for negative or zero values
         if pitch_mean <= 0: pitch_mean = 100
         if pitch_std <= 0: pitch_std = 20
         if volume_mean <= 0: volume_mean = 60
@@ -256,10 +290,17 @@ class AudioProsodyTool(BaseTool[AudioProsodyToolInput, AudioProsodyToolOutput]):
             # Add "Cubic" interpolation method as the second argument
             value = call(intensity, "Get value at time", current_time, "Cubic")
             if value > -100000:  # Filter out undefined values
-                values.append(value)
+                # Handle potential NaN/Inf values
+                value = self._handle_nan_inf(value, None)
+                if value is not None:
+                    values.append(value)
             current_time += time_step
             
-        return np.std(values) if values else 0
+        if len(values) > 1:
+            std_dev = np.std(values)
+            return self._handle_nan_inf(std_dev, 0)
+        else:
+            return 0
         
     def _detect_speech_segments(self, sound, intensity) -> List[Dict[str, float]]:
         """
@@ -491,6 +532,10 @@ class AudioProsodyTool(BaseTool[AudioProsodyToolInput, AudioProsodyToolOutput]):
             relative_intensity = segment_intensity / mean_volume
             z_score = (segment_intensity - mean_volume) / std_volume if std_volume > 0 else 0
             
+            # Handle NaN/Inf values
+            relative_intensity = self._handle_nan_inf(relative_intensity, 1.0)
+            z_score = self._handle_nan_inf(z_score, 0.0)
+            
             # Apply research criteria
             if relative_intensity > self.VOLUME_LOUDER_RATIO or z_score > self.VOLUME_SD_THRESHOLD:
                 volume_events.append(VolumeEvent(
@@ -548,6 +593,10 @@ class AudioProsodyTool(BaseTool[AudioProsodyToolInput, AudioProsodyToolOutput]):
             relative_pitch = segment_mean_pitch / mean_pitch
             pitch_var_ratio = segment_std_pitch / std_pitch if std_pitch > 0 else 0
             
+            # Handle NaN/Inf values
+            relative_pitch = self._handle_nan_inf(relative_pitch, 1.0)
+            pitch_var_ratio = self._handle_nan_inf(pitch_var_ratio, 0.0)
+            
             # Apply research criteria
             if relative_pitch > self.PITCH_STRESS_RATIO or pitch_var_ratio > self.PITCH_SD_THRESHOLD:
                 pitch_events.append(PitchEvent(
@@ -598,6 +647,10 @@ class AudioProsodyTool(BaseTool[AudioProsodyToolInput, AudioProsodyToolOutput]):
             # Calculate relative and z-score
             relative_speed = segment["spm"] / mean_spm
             z_score = (segment["spm"] - mean_spm) / std_spm if std_spm > 0 else 0
+            
+            # Handle NaN/Inf values
+            relative_speed = self._handle_nan_inf(relative_speed, 1.0)
+            z_score = self._handle_nan_inf(z_score, 0.0)
             
             # Apply research criteria
             if relative_speed > self.SPEED_FASTER_RATIO or z_score > self.SPEED_SD_THRESHOLD:
@@ -789,6 +842,10 @@ class AudioProsodyTool(BaseTool[AudioProsodyToolInput, AudioProsodyToolOutput]):
         relative_change = word_volume / volume_mean if volume_mean > 0 else 1.0
         z_score = (word_volume - volume_mean) / volume_std if volume_std > 0 else 0.0
         
+        # Handle NaN/Inf values
+        relative_change = self._handle_nan_inf(relative_change, 1.0)
+        z_score = self._handle_nan_inf(z_score, 0.0)
+        
         # Classify based on research thresholds
         if relative_change > self.VOLUME_LOUDER_RATIO or z_score > self.VOLUME_SD_THRESHOLD:
             volume_level = "louder"
@@ -826,6 +883,10 @@ class AudioProsodyTool(BaseTool[AudioProsodyToolInput, AudioProsodyToolOutput]):
         relative_change = word_pitch / pitch_mean if pitch_mean > 0 else 1.0
         z_score = (word_pitch - pitch_mean) / pitch_std if pitch_std > 0 else 0.0
         
+        # Handle NaN/Inf values
+        relative_change = self._handle_nan_inf(relative_change, 1.0)
+        z_score = self._handle_nan_inf(z_score, 0.0)
+        
         # Classify based on research thresholds
         if relative_change > self.PITCH_STRESS_RATIO or z_score > self.PITCH_SD_THRESHOLD:
             pitch_level = "stress"
@@ -862,6 +923,10 @@ class AudioProsodyTool(BaseTool[AudioProsodyToolInput, AudioProsodyToolOutput]):
         relative_change = word_spm / avg_spm if avg_spm > 0 else 1.0
         # Use a simplified z-score estimation (would need more words for proper std dev)
         z_score = (relative_change - 1.0) * 2  # Rough approximation
+        
+        # Handle NaN/Inf values
+        relative_change = self._handle_nan_inf(relative_change, 1.0)
+        z_score = self._handle_nan_inf(z_score, 0.0)
         
         # Classify based on research thresholds
         if relative_change > self.SPEED_FASTER_RATIO or z_score > self.SPEED_SD_THRESHOLD:

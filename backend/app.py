@@ -5,6 +5,7 @@ from flask_migrate import Migrate
 import os
 import traceback
 import json
+import math
 from datetime import datetime
 from typing import Dict, Any, Optional
 from utils.constants import CONTEXT_DATA
@@ -84,6 +85,55 @@ CORS(
 
 # Register error handlers
 app.register_error_handler(AuthError, handle_auth_error)
+
+
+def sanitize_for_json(obj):
+    """
+    Recursively sanitize a data structure to replace NaN and infinity values with sensible defaults.
+    
+    Args:
+        obj: The object to sanitize (dict, list, or scalar value)
+        
+    Returns:
+        Sanitized object safe for JSON serialization
+    """
+    if isinstance(obj, dict):
+        return {key: sanitize_for_json(value) for key, value in obj.items()}
+    elif isinstance(obj, list):
+        return [sanitize_for_json(item) for item in obj]
+    elif isinstance(obj, float):
+        if math.isnan(obj) or math.isinf(obj):
+            return 0.0
+        return obj
+    else:
+        return obj
+
+
+def handle_nan_inf(value, default=0.0):
+    """
+    Handle NaN and infinity values by replacing them with sensible defaults.
+    
+    Args:
+        value: The value to check and potentially replace
+        default: Default value to use if value is NaN or infinite
+        
+    Returns:
+        Valid numeric value
+    """
+    if value is None:
+        return default
+    
+    try:
+        # Convert to float if not already
+        value = float(value)
+        
+        # Check for NaN or infinity
+        if math.isnan(value) or math.isinf(value):
+            return default
+        
+        return value
+    except (ValueError, TypeError):
+        return default
 
 
 @app.route("/")
@@ -428,6 +478,28 @@ def analyze_speech():
             ).count()
             session_number = existing_sessions_count + 1
 
+            # Sanitize all numeric values to prevent NaN/Inf errors
+            # Audio Prosody sanitization
+            words_per_minute = handle_nan_inf(prosody_result.words_per_minute, 120.0)
+            syllables_per_minute = handle_nan_inf(prosody_result.syllables_per_minute, 180.0)
+            pitch_mean = handle_nan_inf(prosody_result.pitch_mean, 150.0)
+            pitch_std = handle_nan_inf(prosody_result.pitch_std, 20.0)
+            volume_mean = handle_nan_inf(prosody_result.volume_mean, 60.0)
+            volume_std = handle_nan_inf(prosody_result.volume_std, 5.0)
+            
+            # Sanitize event data to remove any NaN values
+            pause_events = sanitize_for_json([event.dict() for event in prosody_result.pause_events])
+            pitch_events = sanitize_for_json([event.dict() for event in prosody_result.pitch_events])
+            volume_events = sanitize_for_json([event.dict() for event in prosody_result.volume_events])
+            speed_events = sanitize_for_json([event.dict() for event in prosody_result.speed_events])
+            
+            # Sanitize other numeric values
+            overall_score = handle_nan_inf(overall_score, 3.0)
+            speech_duration = handle_nan_inf(speech_duration, 0.0)
+            
+            # Sanitize feedback summary
+            feedback_summary = sanitize_for_json(feedback_summary)
+
             # Create new session record with updated structure
             session = Session(
                 speech_id=speech.id,
@@ -442,21 +514,21 @@ def analyze_speech():
                 filler_word_count=filler_result.total_fillers,
                 filler_word_percentage=filler_result.filler_percentage,
                 filler_word_details=filler_analysis,
-                # Audio Prosody Analysis
-                words_per_minute=prosody_result.words_per_minute,
-                syllables_per_minute=prosody_result.syllables_per_minute,
-                pitch_mean=prosody_result.pitch_mean,
-                pitch_std=prosody_result.pitch_std,
-                volume_mean=prosody_result.volume_mean,
-                volume_std=prosody_result.volume_std,
-                pause_events=[event.dict() for event in prosody_result.pause_events],
-                pitch_events=[event.dict() for event in prosody_result.pitch_events],
-                volume_events=[event.dict() for event in prosody_result.volume_events],
-                speed_events=[event.dict() for event in prosody_result.speed_events],
+                # Audio Prosody Analysis - using sanitized values
+                words_per_minute=words_per_minute,
+                syllables_per_minute=syllables_per_minute,
+                pitch_mean=pitch_mean,
+                pitch_std=pitch_std,
+                volume_mean=volume_mean,
+                volume_std=volume_std,
+                pause_events=pause_events,
+                pitch_events=pitch_events,
+                volume_events=volume_events,
+                speed_events=speed_events,
                 duration_seconds=speech_duration,
                 revised_speech_text=revised_speech_text,
                 revised_speech_audio_url=revision_result.audio_gcs_url,
-                # New Feedback Structure
+                # New Feedback Structure - using sanitized values
                 feedback_summary=feedback_summary,
                 overall_score=overall_score,
                 # CSSEF Competency Scores (C1-C7) using individual tool evaluations
