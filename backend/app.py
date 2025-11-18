@@ -759,7 +759,9 @@ def get_current_user_info():
 def get_user_speeches():
     """Get all speeches for the authenticated user"""
     try:
+        print("🔍 Fetching speeches for current user...")
         user = get_current_user()
+        print(f"🔍 Fetching speeches for user ID: {user.id}")
         speeches = (
             Speech.query.filter_by(user_id=user.id)
             .order_by(Speech.updated_at.desc())

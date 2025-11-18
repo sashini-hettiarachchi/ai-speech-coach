@@ -8,7 +8,6 @@ import requests
 from functools import wraps
 from flask import request, jsonify, g
 from jose import jwt, JWTError
-from urllib.request import urlopen
 import json
 from datetime import datetime
 
@@ -59,41 +58,85 @@ def get_token_auth_header():
     token = parts[1]
     return token
 
+JWKS_FILE_PATH = os.path.join(os.path.dirname(__file__), 'data', 'jwks.json')
+_JWKS_CACHE = None  # simple in-process cache
+
+def _load_jwks():
+    """Load JWKS from local json file with simple caching.
+
+    The file should contain the exact JSON obtained from:
+        https://<AUTH0_DOMAIN>/.well-known/jwks.json
+
+    Returns the parsed JWKS dict.
+    Raises AuthError if the file is missing or invalid.
+    """
+    global _JWKS_CACHE
+    if _JWKS_CACHE is not None:
+        return _JWKS_CACHE
+
+    if not os.path.exists(JWKS_FILE_PATH):
+        raise AuthError({
+            'code': 'jwks_file_missing',
+            'description': f'JWKS file not found at {JWKS_FILE_PATH}. Populate it with your tenant JWKS.'
+        }, 500)
+
+    try:
+        with open(JWKS_FILE_PATH, 'r', encoding='utf-8') as f:
+            _JWKS_CACHE = json.load(f)
+    except json.JSONDecodeError as e:
+        raise AuthError({
+            'code': 'jwks_file_invalid',
+            'description': f'Invalid JWKS JSON file: {e}'
+        }, 500)
+
+    if 'keys' not in _JWKS_CACHE:
+        raise AuthError({
+            'code': 'jwks_file_invalid',
+            'description': 'JWKS JSON must contain a "keys" field.'
+        }, 500)
+    return _JWKS_CACHE
+
 def get_rsa_key(token):
-    """Get RSA key for token verification"""
+    """Get RSA key for token verification using local JWKS file.
+
+    This implementation avoids a network call and depends on a locally stored
+    JWKS. Ensure the file is kept up to date when Auth0 rotates keys.
+    """
     if not AUTH0_DOMAIN:
         raise AuthError({
             'code': 'auth0_not_configured',
             'description': 'AUTH0_DOMAIN environment variable not set.'
         }, 500)
-        
-    jsonurl = urlopen(f'https://{AUTH0_DOMAIN}/.well-known/jwks.json')
-    jwks = json.loads(jsonurl.read())
-    
+
+    jwks = _load_jwks()
+    print(f"🔍 Loaded local JWKS: {JWKS_FILE_PATH}")
+
     unverified_header = jwt.get_unverified_header(token)
     rsa_key = {}
-    
+
     if 'kid' not in unverified_header:
         raise AuthError({
             'code': 'invalid_header',
             'description': 'Authorization malformed.'
         }, 401)
 
-    for key in jwks['keys']:
-        if key['kid'] == unverified_header['kid']:
+    for key in jwks.get('keys', []):
+        if key.get('kid') == unverified_header['kid']:
             rsa_key = {
-                'kty': key['kty'],
-                'kid': key['kid'],
-                'use': key['use'],
-                'n': key['n'],
-                'e': key['e']
+                'kty': key.get('kty'),
+                'kid': key.get('kid'),
+                'use': key.get('use'),
+                'n': key.get('n'),
+                'e': key.get('e')
             }
+            break
     return rsa_key
 
 def verify_decode_jwt(token):
     """Verify and decode JWT token"""
+    print(f"🔍 Verifying JWT token...")
     rsa_key = get_rsa_key(token)
-    
+    print(f"🔍 RSA Key obtained for token verification: {rsa_key}")
     if rsa_key:
         try:
             payload = jwt.decode(
@@ -103,6 +146,7 @@ def verify_decode_jwt(token):
                 audience=AUTH0_AUDIENCE,
                 issuer=f'https://{AUTH0_DOMAIN}/'
             )
+            print(f"🔍 JWT payload obtained: {payload}")
             return payload
 
         except jwt.ExpiredSignatureError:
@@ -163,11 +207,14 @@ def auth0_required(f):
     def decorated_function(*args, **kwargs):
         try:
             # Get and verify token
+            print("🔍 Verifying Auth0 token...")
             token = get_token_auth_header()
+            print(f"🔍 Token obtained: {token[:10]}...")  # Print first 10 chars for debugging
             payload = verify_decode_jwt(token)
 
             # Extract user ID from token
             auth0_user_id = payload.get('sub')
+            print(f"🔍 Auth0 user ID from token: {auth0_user_id}")
             if not auth0_user_id:
                 raise AuthError({
                     'code': 'invalid_token',
@@ -176,6 +223,7 @@ def auth0_required(f):
             
             # Sync user with database
             user = sync_user_with_database(auth0_user_id)
+            print(f"✅ Authenticated user: {auth0_user_id}")
             
             # Add user info to Flask g object for use in endpoints
             g.current_user = user
@@ -197,7 +245,10 @@ def auth0_required(f):
 
 def get_current_user():
     """Get current authenticated user from Flask g object"""
-    return getattr(g, 'current_user', None)
+    print("🔍 Retrieving current user from g object")
+    user = getattr(g, 'current_user', None)
+    print(f"🔍 Retrieving current user from g: {user}")
+    return user
 
 def get_auth0_user_id():
     """Get current Auth0 user ID from Flask g object"""
