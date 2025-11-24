@@ -12,6 +12,7 @@ class User(db.Model):
     
     id = db.Column(db.Integer, primary_key=True)
     auth0_user_id = db.Column(db.String(255), unique=True, nullable=False, index=True)
+    participant_id = db.Column(db.String(10), nullable=True, index=True)  # P1, P2, P3, etc.
     synced_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
@@ -20,12 +21,13 @@ class User(db.Model):
     prpsa_assessments = db.relationship('UserPRPSAAssessment', backref='user', lazy=True, cascade='all, delete-orphan')
     
     def __repr__(self):
-        return f'<User {self.auth0_user_id}>'
+        return f'<User {self.participant_id or self.auth0_user_id}>'
     
     def to_dict(self):
         return {
             'id': self.id,
             'auth0_user_id': self.auth0_user_id,
+            'participant_id': self.participant_id,
             'synced_at': self.synced_at.isoformat() if self.synced_at else None,
             'created_at': self.created_at.isoformat() if self.created_at else None
         }

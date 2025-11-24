@@ -11,7 +11,7 @@ from typing import Dict, Any, Optional
 from utils.constants import CONTEXT_DATA
 
 # Import database models
-from models import db, Speech, Session, PRPSAAssessment, UserPRPSAAssessment
+from models import db, Speech, Session, PRPSAAssessment, UserPRPSAAssessment, User
 
 # Import authentication utilities
 from auth0_utils import (
@@ -1655,6 +1655,232 @@ def delete_session(session_id):
         return jsonify({"error": str(e)}), 500
 
 
+# =============================================
+# ADMIN DASHBOARD ENDPOINTS
+# =============================================
+
+@app.route("/api/v1/admin/users", methods=["GET"])
+@auth0_required
+def get_all_users_admin():
+    """Get all users (P1-P7) with their PRPSA scores (initial and post-experimental) - Admin only"""
+    try:
+        # Get all users with their PRPSA assessments
+        from sqlalchemy import and_
+        
+        # Filter for participants P1-P7
+        valid_participant_ids = ['P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'P7']
+        users = User.query.filter(User.participant_id.in_(valid_participant_ids)).all()
+        
+        users_data = []
+        for user in users:
+            # Get initial and post PRPSA assessments
+            initial_prpsa = UserPRPSAAssessment.query.filter_by(
+                user_id=user.id, 
+                assessment_type='initial'
+            ).first()
+            
+            post_prpsa = UserPRPSAAssessment.query.filter_by(
+                user_id=user.id, 
+                assessment_type='post_experimental'
+            ).first()
+            
+            # Count speeches and sessions
+            speech_count = Speech.query.filter_by(user_id=user.id).count()
+            session_count = db.session.query(Session).join(Speech).filter(
+                Speech.user_id == user.id
+            ).count()
+            
+            users_data.append({
+                'user_id': user.id,
+                'participant_id': user.participant_id,
+                'auth0_user_id': user.auth0_user_id,
+                'created_at': user.created_at.isoformat() if user.created_at else None,
+                'speech_count': speech_count,
+                'session_count': session_count,
+                'initial_prpsa': {
+                    'score': initial_prpsa.total_score if initial_prpsa else None,
+                    'anxiety_level': initial_prpsa.anxiety_level if initial_prpsa else None,
+                    'completed_at': initial_prpsa.completed_at.isoformat() if initial_prpsa else None
+                },
+                'post_prpsa': {
+                    'score': post_prpsa.total_score if post_prpsa else None,
+                    'anxiety_level': post_prpsa.anxiety_level if post_prpsa else None,
+                    'completed_at': post_prpsa.completed_at.isoformat() if post_prpsa else None
+                }
+            })
+        
+        # Sort by participant_id
+        users_data.sort(key=lambda x: x['participant_id'] if x['participant_id'] else 'Z')
+        
+        return jsonify({
+            "status": "success",
+            "users": users_data,
+            "total_users": len(users_data)
+        })
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/v1/admin/sessions", methods=["GET"])
+@auth0_required
+def get_all_sessions_admin():
+    """Get all sessions for users P1-P7 with CSSEF scores - Admin only"""
+    try:
+        # Get user_id filter from query params (optional)
+        user_id = request.args.get('user_id', type=int)
+        
+        # Build query
+        query = db.session.query(Session, Speech, User).join(
+            Speech, Session.speech_id == Speech.id
+        ).join(
+            User, Speech.user_id == User.id
+        )
+        
+        # Filter for P1-P7 participants only
+        valid_participant_ids = ['P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'P7']
+        query = query.filter(User.participant_id.in_(valid_participant_ids))
+        
+        # Apply user filter if provided
+        if user_id:
+            query = query.filter(User.id == user_id)
+        
+        # Execute query and order by date
+        results = query.order_by(Session.created_at.desc()).all()
+        
+        sessions_data = []
+        for session, speech, user in results:
+            # Build CSSEF scores object
+            cssef_scores = {
+                'c1_topic_choice': session.c1_topic_choice_score,
+                'c2_purpose': session.c2_purpose_score,
+                'c3_supporting': session.c3_supporting_score,
+                'c4_organization': session.c4_organization_score,
+                'c5_language': session.c5_language_score,
+                'c6_vocal_variety': session.c6_vocal_variety_score,
+                'c7_pronunciation': session.c7_pronunciation_score
+            }
+            
+            sessions_data.append({
+                'session_id': session.id,
+                'session_number': session.session_number,
+                'created_at': session.created_at.isoformat() if session.created_at else None,
+                'user_id': user.id,
+                'participant_id': user.participant_id,
+                'auth0_user_id': user.auth0_user_id,
+                'speech_id': speech.id,
+                'speech_title': speech.title,
+                'speech_context': speech.context,
+                'overall_score': session.overall_score,
+                'cssef_scores': cssef_scores,
+                'words_per_minute': session.words_per_minute,
+                'filler_word_count': session.filler_word_count,
+                'filler_word_percentage': session.filler_word_percentage,
+                'duration_seconds': session.duration_seconds
+            })
+        
+        return jsonify({
+            "status": "success",
+            "sessions": sessions_data,
+            "total_sessions": len(sessions_data)
+        })
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/v1/admin/user/<int:user_id>/sessions", methods=["GET"])
+@auth0_required
+def get_user_sessions_admin(user_id):
+    """Get all sessions for a specific user (P1-P7) with detailed CSSEF progression - Admin only"""
+    try:
+        # Verify user exists and is a valid participant
+        user = User.query.get(user_id)
+        if not user:
+            return jsonify({"error": "User not found"}), 404
+        
+        # Optionally validate participant_id is P1-P7
+        valid_participant_ids = ['P1', 'P2', 'P3', 'P4', 'P5', 'P6', 'P7']
+        if user.participant_id and user.participant_id not in valid_participant_ids:
+            return jsonify({"error": "Invalid participant"}), 403
+        
+        # Get all sessions for this user with speech info
+        results = db.session.query(Session, Speech).join(
+            Speech, Session.speech_id == Speech.id
+        ).filter(
+            Speech.user_id == user_id
+        ).order_by(Session.created_at.asc()).all()
+        
+        sessions_data = []
+        for session, speech in results:
+            # Build detailed CSSEF scores with comments
+            cssef_scores = {
+                'c1_topic_choice': {
+                    'score': session.c1_topic_choice_score,
+                    'comment': session.c1_topic_choice_comment,
+                    'improvement': session.c1_topic_choice_improvement
+                },
+                'c2_purpose': {
+                    'score': session.c2_purpose_score,
+                    'comment': session.c2_purpose_comment,
+                    'improvement': session.c2_purpose_improvement
+                },
+                'c3_supporting': {
+                    'score': session.c3_supporting_score,
+                    'comment': session.c3_supporting_comment,
+                    'improvement': session.c3_supporting_improvement
+                },
+                'c4_organization': {
+                    'score': session.c4_organization_score,
+                    'comment': session.c4_organization_comment,
+                    'improvement': session.c4_organization_improvement
+                },
+                'c5_language': {
+                    'score': session.c5_language_score,
+                    'comment': session.c5_language_comment,
+                    'improvement': session.c5_language_improvement
+                },
+                'c6_vocal_variety': {
+                    'score': session.c6_vocal_variety_score,
+                    'comment': session.c6_vocal_variety_comment,
+                    'improvement': session.c6_vocal_variety_improvement
+                },
+                'c7_pronunciation': {
+                    'score': session.c7_pronunciation_score,
+                    'comment': session.c7_pronunciation_comment,
+                    'improvement': session.c7_pronunciation_improvement
+                }
+            }
+            
+            sessions_data.append({
+                'session_id': session.id,
+                'session_number': session.session_number,
+                'created_at': session.created_at.isoformat() if session.created_at else None,
+                'speech_id': speech.id,
+                'speech_title': speech.title,
+                'speech_context': speech.context,
+                'overall_score': session.overall_score,
+                'cssef_scores': cssef_scores,
+                'words_per_minute': session.words_per_minute,
+                'filler_word_count': session.filler_word_count,
+                'filler_word_percentage': session.filler_word_percentage,
+                'duration_seconds': session.duration_seconds,
+                'feedback_summary': session.feedback_summary
+            })
+        
+        return jsonify({
+            "status": "success",
+            "user_id": user_id,
+            "participant_id": user.participant_id,
+            "auth0_user_id": user.auth0_user_id,
+            "sessions": sessions_data,
+            "total_sessions": len(sessions_data)
+        })
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 if __name__ == "__main__":
     print("🚀 Starting Speech Coach API with Auth0 + Database Integration...")
     print("📡 Available endpoints:")
@@ -1678,6 +1904,9 @@ if __name__ == "__main__":
         "   • POST /api/v1/sessions/{id}/refresh-media-url - Refresh expired media URL"
     )
     print("   • POST /api/v1/sessions/{id}/fix-blob-name - Fix missing GCS blob name")
+    print("   • GET  /api/v1/admin/users - Get all users with PRPSA scores (Admin)")
+    print("   • GET  /api/v1/admin/sessions - Get all sessions with CSSEF scores (Admin)")
+    print("   • GET  /api/v1/admin/user/{id}/sessions - Get user sessions detail (Admin)")
     print(f"📂 Upload folder: {UPLOAD_FOLDER}")
     print(f"🔗 Accepting CORS from: {CORS_ORIGINS}")
     print(

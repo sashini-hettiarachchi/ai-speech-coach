@@ -28,6 +28,9 @@ export default function Header() {
             <Link href="/speeches">
               <button className="bg-gray-100 text-black px-3 py-1 rounded font-medium hover:bg-gray-200 transition">Speeches</button>
             </Link>
+            <Link href="/admin">
+              <button className="bg-purple-100 text-purple-800 px-3 py-1 rounded font-medium hover:bg-purple-200 transition">Admin</button>
+            </Link>
             <Link href="/profile">
               <button className="bg-gray-100 text-black px-3 py-1 rounded font-medium hover:bg-gray-200 transition">Profile</button>
             </Link>

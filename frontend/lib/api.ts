@@ -300,4 +300,28 @@ export const userPRPSAApi = {
   },
 };
 
-export default { speechApi, sessionApi, userPRPSAApi };
+// Admin API utilities
+export const adminApi = {
+  // Get all users with their PRPSA scores
+  getAllUsers: async (): Promise<any> => {
+    const response = await authenticatedFetch('/api/v1/admin/users');
+    return response.data;
+  },
+
+  // Get all sessions across all users
+  getAllSessions: async (userId?: number): Promise<any> => {
+    const url = userId 
+      ? `/api/v1/admin/sessions?user_id=${userId}`
+      : '/api/v1/admin/sessions';
+    const response = await authenticatedFetch(url);
+    return response.data;
+  },
+
+  // Get detailed sessions for a specific user
+  getUserSessions: async (userId: number): Promise<any> => {
+    const response = await authenticatedFetch(`/api/v1/admin/user/${userId}/sessions`);
+    return response.data;
+  },
+};
+
+export default { speechApi, sessionApi, userPRPSAApi, adminApi };
