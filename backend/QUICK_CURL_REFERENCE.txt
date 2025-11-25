@@ -1,0 +1,90 @@
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                     ADMIN SPEECH UPLOAD - QUICK REFERENCE                      ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+📋 WHAT YOU NEED:
+  • user_id      (from database users table)
+  • speech_id    (from database speeches table)
+  • audio file   (path to .wav, .mp3, .m4a, etc.)
+
+═══════════════════════════════════════════════════════════════════════════════
+
+🚀 BASIC CURL COMMAND:
+
+curl -X POST http://localhost:5000/api/v1/admin/analyze \
+  -F "file=@/path/to/your/audio.wav" \
+  -F "user_id=YOUR_USER_ID" \
+  -F "speech_id=YOUR_SPEECH_ID"
+
+═══════════════════════════════════════════════════════════════════════════════
+
+📝 WITH SESSION TITLE:
+
+curl -X POST http://localhost:5000/api/v1/admin/analyze \
+  -F "file=@/path/to/your/audio.wav" \
+  -F "user_id=YOUR_USER_ID" \
+  -F "speech_id=YOUR_SPEECH_ID" \
+  -F "session_title=Practice Session 1"
+
+═══════════════════════════════════════════════════════════════════════════════
+
+💡 EXAMPLE (COPY & PASTE, THEN EDIT):
+
+curl -X POST http://localhost:5000/api/v1/admin/analyze \
+  -F "file=@/Users/sashini/Documents/my_speech.wav" \
+  -F "user_id=1" \
+  -F "speech_id=5" \
+  -F "session_title=Admin Upload" \
+  -v
+
+═══════════════════════════════════════════════════════════════════════════════
+
+🔍 FIND USER ID:
+
+SELECT id, auth0_user_id FROM users;
+
+═══════════════════════════════════════════════════════════════════════════════
+
+🔍 FIND SPEECH ID FOR A USER:
+
+SELECT id, title, context FROM speeches WHERE user_id = YOUR_USER_ID;
+
+═══════════════════════════════════════════════════════════════════════════════
+
+✅ SUCCESS RESPONSE:
+
+{
+  "status": "success",
+  "timestamp": "2025-11-25T10:30:00.123456",
+  "user_id": "1",
+  "speech_id": "5",
+  "session_id": 42
+}
+
+═══════════════════════════════════════════════════════════════════════════════
+
+❌ COMMON ERRORS:
+
+"No file provided"
+  → Check: -F "file=@/path/to/file.wav" (note the @ symbol)
+
+"User with id X not found"
+  → Check: User ID exists in database
+
+"Speech with id X not found for user Y"
+  → Check: Speech belongs to that user
+
+═══════════════════════════════════════════════════════════════════════════════
+
+🌐 PRODUCTION URL:
+
+Replace http://localhost:5000 with your deployed backend URL
+
+═══════════════════════════════════════════════════════════════════════════════
+
+⚠️  SECURITY NOTE:
+
+This endpoint has NO authentication. Use only in trusted environments.
+For production, add API key authentication or IP whitelisting.
+
+═══════════════════════════════════════════════════════════════════════════════

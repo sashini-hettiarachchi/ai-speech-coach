@@ -142,7 +142,7 @@ def home():
 
 
 @app.route("/api/v1/analyze", methods=["POST"])
-@auth0_required
+# @auth0_required
 def analyze_speech():
     """Main endpoint for speech analysis with MCP-integrated knowledge server recommendations"""
 
@@ -601,6 +601,403 @@ def analyze_speech():
             ),
             500,
         )
+
+
+@app.route("/api/v1/admin/analyze", methods=["POST"])
+def admin_analyze_speech():
+    """
+    Admin endpoint for speech analysis - allows uploading for any user by specifying user_id and speech_id.
+    This endpoint does NOT require authentication and is intended for admin/testing purposes only.
+    
+    Required form parameters:
+    - file: audio file
+    - user_id: target user's database ID
+    - speech_id: target speech's database ID
+    - session_title (optional): title for the session
+    """
+    try:
+        print("📝 Received ADMIN speech analysis request")
+
+        # Check if file is present
+        if "file" not in request.files:
+            return jsonify({"error": "No file provided"}), 400
+
+        file = request.files["file"]
+        if file.filename == "":
+            return jsonify({"error": "No file selected"}), 400
+
+        # Get user_id and speech_id from form data
+        user_id = request.form.get("user_id")
+        speech_id = request.form.get("speech_id")
+        session_title = request.form.get("session_title")
+
+        if not user_id:
+            return jsonify({"error": "user_id is required"}), 400
+        if not speech_id:
+            return jsonify({"error": "speech_id is required"}), 400
+
+        # Verify user exists
+        from models import User
+        user = User.query.filter_by(id=int(user_id)).first()
+        if not user:
+            return jsonify({"error": f"User with id {user_id} not found"}), 404
+
+        # Verify speech exists and belongs to the specified user
+        speech = Speech.query.filter_by(id=int(speech_id), user_id=int(user_id)).first()
+        if not speech:
+            return jsonify({"error": f"Speech with id {speech_id} not found for user {user_id}"}), 404
+
+        context_label = speech.context
+        speech_title = speech.title
+        speech_goal = speech.goal
+        speech_audience_description = speech.audience_description
+        speech_key_points = speech.key_points
+
+        print(f"🎯 ADMIN Analysis - User: {user_id}, Speech: {speech.title}, Context: {context_label}")
+
+        # Save uploaded file temporarily
+        filename = file.filename
+        temp_filepath = os.path.join(UPLOAD_FOLDER, f"temp_{filename}")
+        file.save(temp_filepath)
+
+        print(f"💾 File saved temporarily: {temp_filepath}")
+
+        # Upload to Google Cloud Storage
+        try:
+            blob_name, gcs_signed_url = upload_speech_file(temp_filepath, filename)
+            print(f"☁️ File uploaded to GCS: {gcs_signed_url}")
+            print(f"📏 GCS URL length: {len(gcs_signed_url)} characters")
+        except Exception as gcs_error:
+            print(f"❌ GCS upload failed: {str(gcs_error)}")
+            try:
+                os.remove(temp_filepath)
+            except:
+                pass
+            return jsonify({"error": f"File upload failed: {str(gcs_error)}"}), 500
+
+        # Initialize MCP tools
+        tools = {
+            "transcribe": TranscribeTool(model_size="tiny"),
+            "audio_prosody": AudioProsodyTool(),
+            "filler_detector": FillerDetectorTool(),
+            "cssef_c1": CSSEFIC1Tool(),
+            "cssef_c2": CSSEFIC2Tool(),
+            "cssef_c3": CSSEFIC3Tool(),
+            "cssef_c4": CSSEFIC4Tool(),
+            "cssef_c5": CSSEFIC5Tool(),
+            "cssef_c6": CSSEFIC6Tool(),
+            "cssef_c7": CSSEFIC7Tool(),
+            "speech_revision": SpeechRevisionTool(),
+            "overall_score": OverallScoreTool(),
+            "feedback_summary": FeedbackSummaryTool(),
+        }
+
+        # Step 1: Transcribe audio
+        print("🗣️ Starting transcription...")
+        transcription_result = tools["transcribe"]({"file_path": temp_filepath})
+        transcript = transcription_result.transcript
+        segments = transcription_result.segments
+        words = transcription_result.words
+        print("✅ Transcription completed")
+
+        # Step 2: Analyze audio prosody
+        print("🎵 Analyzing audio prosody...")
+        word_timestamps_for_prosody = [
+            {
+                "word": word.word,
+                "start": word.start,
+                "end": word.end,
+                "probability": word.probability
+            }
+            for word in words
+        ]
+        
+        prosody_result = tools["audio_prosody"]({
+            "file_path": temp_filepath, 
+            "transcript": transcript,
+            "word_timestamps": word_timestamps_for_prosody
+        })
+        print("✅ Audio prosody analysis completed")
+
+        filler_result = tools["filler_detector"]({"transcript": transcript})
+        filler_analysis = filler_result.model_dump()
+        print(f"✅ Detected {filler_result.total_fillers} filler words ({filler_result.filler_percentage:.1f}%)")
+
+        # Calculate speech duration
+        speech_duration = (
+            prosody_result.pause_events[-1].end_time
+            if prosody_result.pause_events
+            else 60.0
+        )
+        
+        # CSSEF Competency Evaluations
+        print("🎯 Starting CSSEF competency evaluations...")
+        
+        c1_result = tools["cssef_c1"]({
+            "transcript": transcript,
+            "context": context_label,
+            "speech_duration": speech_duration,
+            "speech_title": speech_title,
+            "speech_goal": speech_goal,
+            "audience_description": speech_audience_description,
+            "key_points": speech_key_points
+        })
+        
+        c2_result = tools["cssef_c2"]({
+            "transcript": transcript,
+            "context": context_label,
+            "speech_goal": speech_goal,
+            "audience_description": speech_audience_description,
+            "speech_title": speech_title
+        })
+        
+        c3_result = tools["cssef_c3"]({
+            "transcript": transcript,
+            "context": context_label,
+            "audience_description": speech_audience_description,
+            "speech_title": speech_title
+        })
+        
+        c4_result = tools["cssef_c4"]({
+            "transcript": transcript,
+            "context": context_label,
+            "speech_goal": speech_goal,
+            "audience_description": speech_audience_description,
+            "key_points": speech_key_points
+        })
+        
+        c5_result = tools["cssef_c5"]({
+            "transcript": transcript,
+            "context": context_label,
+            "audience_description": speech_audience_description,
+            "filler_analysis": filler_analysis
+        })
+        
+        c6_result = tools["cssef_c6"]({
+            "transcript": transcript,
+            "prosody_results": prosody_result.dict(),
+            "context": context_label,
+            "speech_duration": speech_duration,
+            "words_per_minute": prosody_result.words_per_minute
+        })
+        
+        c7_result = tools["cssef_c7"]({
+            "transcript": transcript,
+            "context": context_label,
+            "audience_description": speech_audience_description,
+            "filler_analysis": filler_analysis
+        })
+        
+        # Compile CSSEF results
+        cssef_scores = {
+            "c1_topic_choice": {
+                "score": c1_result.score,
+                "comment": c1_result.justification,
+                "improvement": c1_result.improvement_suggestions
+            },
+            "c2_purpose": {
+                "score": c2_result.score,
+                "comment": c2_result.justification,
+                "improvement": c2_result.improvement_suggestions
+            },
+            "c3_supporting": {
+                "score": c3_result.score,
+                "comment": c3_result.justification,
+                "improvement": c3_result.improvement_suggestions
+            },
+            "c4_organization": {
+                "score": c4_result.score,
+                "comment": c4_result.justification,
+                "improvement": c4_result.improvement_suggestions
+            },
+            "c5_language": {
+                "score": c5_result.score,
+                "comment": c5_result.justification,
+                "improvement": c5_result.improvement_suggestions
+            },
+            "c6_vocal_variety": {
+                "score": c6_result.score,
+                "comment": c6_result.justification,
+                "improvement": c6_result.improvement_suggestions
+            },
+            "c7_pronunciation": {
+                "score": c7_result.score,
+                "comment": c7_result.justification,
+                "improvement": c7_result.improvement_suggestions
+            }
+        }
+        
+        print("✅ All CSSEF competency evaluations completed")
+        
+        # Calculate Overall Score
+        print("📊 Calculating overall score...")
+        overall_result = tools["overall_score"]({
+            "cssef_scores": cssef_scores,
+            "context": context_label
+        })
+        
+        # Generate Feedback Summary
+        print("📝 Generating AI-powered feedback summary...")
+        feedback_result = tools["feedback_summary"]({
+            "cssef_scores": cssef_scores,
+            "overall_score": overall_result.overall_score,
+            "context": context_label,
+            "speech_duration": speech_duration,
+            "words_per_minute": prosody_result.words_per_minute,
+            "filler_percentage": filler_result.filler_percentage,
+            "transcript": transcript,
+            "speech_title": speech_title,
+            "speech_goal": speech_goal
+        })
+        
+        overall_score = overall_result.overall_score
+        feedback_summary = feedback_result.feedback_summary.model_dump()
+        
+        # Generate Revised Speech
+        print("✨ Generating revised speech text and audio...")
+        existing_sessions_count = Session.query.filter_by(speech_id=speech.id).count()
+        session_number = existing_sessions_count + 1
+        
+        revision_result = tools["speech_revision"]({
+            "original_transcript": transcript,
+            "context": context_label,
+            "speech_goal": speech_goal,
+            "audience_description": speech_audience_description,
+            "key_points": speech_key_points,
+            "cssef_feedback": cssef_scores,
+            "filler_analysis": filler_analysis,
+            "session_id": session_number
+        })
+        
+        print("✅ Speech revision completed")
+        revised_speech_text = revision_result.revised_text
+
+        # Save session to database
+        try:
+            if len(gcs_signed_url) > 2000:
+                print(f"⚠️ Warning: GCS URL length ({len(gcs_signed_url)}) exceeds database limit")
+                return jsonify({"error": "Generated URL is too long for database storage"}), 500
+
+            # Extract individual scores
+            c1_score = min(5.0, max(1.0, cssef_scores["c1_topic_choice"]["score"]))
+            c2_score = min(5.0, max(1.0, cssef_scores["c2_purpose"]["score"]))
+            c3_score = min(5.0, max(1.0, cssef_scores["c3_supporting"]["score"]))
+            c4_score = min(5.0, max(1.0, cssef_scores["c4_organization"]["score"]))
+            c5_score = min(5.0, max(1.0, cssef_scores["c5_language"]["score"]))
+            c6_score = min(5.0, max(1.0, cssef_scores["c6_vocal_variety"]["score"]))
+            c7_score = min(5.0, max(1.0, cssef_scores["c7_pronunciation"]["score"]))
+
+            print(f"🎯 CSSEF Scores: C1={c1_score:.2f}, C2={c2_score:.2f}, C3={c3_score:.2f}, C4={c4_score:.2f}, C5={c5_score:.2f}, C6={c6_score:.2f}, C7={c7_score:.2f}")
+            print(f"📊 Overall Score: {overall_score:.3f}")
+
+            # Sanitize numeric values
+            words_per_minute = handle_nan_inf(prosody_result.words_per_minute, 120.0)
+            syllables_per_minute = handle_nan_inf(prosody_result.syllables_per_minute, 180.0)
+            pitch_mean = handle_nan_inf(prosody_result.pitch_mean, 150.0)
+            pitch_std = handle_nan_inf(prosody_result.pitch_std, 20.0)
+            volume_mean = handle_nan_inf(prosody_result.volume_mean, 60.0)
+            volume_std = handle_nan_inf(prosody_result.volume_std, 5.0)
+            
+            pause_events = sanitize_for_json([event.dict() for event in prosody_result.pause_events])
+            pitch_events = sanitize_for_json([event.dict() for event in prosody_result.pitch_events])
+            volume_events = sanitize_for_json([event.dict() for event in prosody_result.volume_events])
+            speed_events = sanitize_for_json([event.dict() for event in prosody_result.speed_events])
+            
+            overall_score = handle_nan_inf(overall_score, 3.0)
+            speech_duration = handle_nan_inf(speech_duration, 0.0)
+            feedback_summary = sanitize_for_json(feedback_summary)
+
+            # Create new session record
+            session = Session(
+                speech_id=speech.id,
+                session_number=session_number,
+                title=session_title,
+                media_url=gcs_signed_url,
+                media_type="audio",
+                original_filename=filename,
+                transcript=transcript,
+                feedback="CSSEF evaluation completed with individual competency analysis",
+                filler_word_count=filler_result.total_fillers,
+                filler_word_percentage=filler_result.filler_percentage,
+                filler_word_details=filler_analysis,
+                words_per_minute=words_per_minute,
+                syllables_per_minute=syllables_per_minute,
+                pitch_mean=pitch_mean,
+                pitch_std=pitch_std,
+                volume_mean=volume_mean,
+                volume_std=volume_std,
+                pause_events=pause_events,
+                pitch_events=pitch_events,
+                volume_events=volume_events,
+                speed_events=speed_events,
+                duration_seconds=speech_duration,
+                revised_speech_text=revised_speech_text,
+                revised_speech_audio_url=revision_result.audio_gcs_url,
+                feedback_summary=feedback_summary,
+                overall_score=overall_score,
+                c1_topic_choice_score=c1_score,
+                c1_topic_choice_comment=cssef_scores["c1_topic_choice"]["comment"],
+                c1_topic_choice_improvement=cssef_scores["c1_topic_choice"]["improvement"],
+                c2_purpose_score=c2_score,
+                c2_purpose_comment=cssef_scores["c2_purpose"]["comment"],
+                c2_purpose_improvement=cssef_scores["c2_purpose"]["improvement"],
+                c3_supporting_score=c3_score,
+                c3_supporting_comment=cssef_scores["c3_supporting"]["comment"],
+                c3_supporting_improvement=cssef_scores["c3_supporting"]["improvement"],
+                c4_organization_score=c4_score,
+                c4_organization_comment=cssef_scores["c4_organization"]["comment"],
+                c4_organization_improvement=cssef_scores["c4_organization"]["improvement"],
+                c5_language_score=c5_score,
+                c5_language_comment=cssef_scores["c5_language"]["comment"],
+                c5_language_improvement=cssef_scores["c5_language"]["improvement"],
+                c6_vocal_variety_score=c6_score,
+                c6_vocal_variety_comment=cssef_scores["c6_vocal_variety"]["comment"],
+                c6_vocal_variety_improvement=cssef_scores["c6_vocal_variety"]["improvement"],
+                c7_pronunciation_score=c7_score,
+                c7_pronunciation_comment=cssef_scores["c7_pronunciation"]["comment"],
+                c7_pronunciation_improvement=cssef_scores["c7_pronunciation"]["improvement"],
+            )
+
+            db.session.add(session)
+            db.session.commit()
+
+            print(f"✅ Saved session {session.id} to database")
+
+        except Exception as db_error:
+            print(f"⚠️ Database save error: {str(db_error)}")
+            print(f"🔍 Error traceback: {traceback.format_exc()}")
+            db.session.rollback()
+            session = None
+
+        # Prepare response
+        response = {
+            "status": "success",
+            "timestamp": datetime.now().isoformat(),
+            "user_id": user_id,
+            "speech_id": speech_id,
+        }
+
+        if "session" in locals() and session is not None and hasattr(session, 'id'):
+            response["session_id"] = session.id
+
+        # Clean up temporary file
+        try:
+            os.remove(temp_filepath)
+            print(f"🗑️ Cleaned up temporary file: {temp_filepath}")
+        except Exception as e:
+            print(f"⚠️ Could not remove temporary file {temp_filepath}: {e}")
+
+        print("✅ ADMIN Analysis completed successfully")
+        return jsonify(response)
+
+    except Exception as e:
+        print(f"❌ Error in ADMIN speech analysis: {str(e)}")
+        print(f"🔍 Traceback: {traceback.format_exc()}")
+        return jsonify({
+            "status": "error",
+            "error": str(e),
+            "timestamp": datetime.now().isoformat(),
+        }), 500
 
 
 @app.route("/api/v1/health", methods=["GET"])
@@ -1661,6 +2058,7 @@ if __name__ == "__main__":
     print("   • GET  /api/v1/health - Check tools and server status")
     print("   • GET  /api/v1/options - Get available options")
     print("   • POST /api/v1/analyze - Analyze speech with MCP tools pipeline")
+    print("   • POST /api/v1/admin/analyze - [ADMIN] Analyze speech for any user (no auth required)")
     print("   • GET  /api/v1/auth/user - Get current user info")
     print("   • GET  /api/v1/speeches - List user speeches")
     print("   • POST /api/v1/speeches - Create new speech")
