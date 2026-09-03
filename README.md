@@ -137,4 +137,4 @@ Test LLM recommendations with sample data
 
 ## License
 
-[MIT License](LICENSE)
+This project is licensed under [CC BY-NC 4.0](LICENSE) (Creative Commons Attribution-NonCommercial 4.0 International). You may share and adapt the material with attribution, for non-commercial purposes only.
